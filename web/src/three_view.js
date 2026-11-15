@@ -10,8 +10,8 @@
 // Monster sprites are tracked by monster id and glide between cells, which
 // hides the turn-based steps.
 define(["jquery", "comm", "./map_knowledge", "./cell_renderer", "./player",
-	"./tileinfo-dngn", "./enums", "./hud"],
-function($, comm, map_knowledge, cr, player, dngn, enums, hud) {
+	"./tileinfo-dngn", "./enums", "./hud", "./dungeon_renderer"],
+function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer) {
 	"use strict";
 
 	let THREE = null;
@@ -212,7 +212,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud) {
 		s.raycaster = new THREE.Raycaster();
 		s.last_time = performance.now();
 
-		hud.init();
+		hud.init({ can_act: game_has_focus, icon_for: monster_icon });
 		build_toolbar();
 		bind_input();
 		apply_enabled();
@@ -528,6 +528,13 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud) {
 		return tex;
 	}
 
+	// The sprite canvas for a monster, for the HUD's monster list.
+	function monster_icon(id)
+	{
+		const e = state && state.sprites[`mon:${id}`];
+		return e && e.sprite.material.map ? e.sprite.material.map.image : null;
+	}
+
 	function remove_sprite(key)
 	{
 		const e = state.sprites[key];
@@ -600,7 +607,9 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud) {
 		const s = state;
 		const dungeon = document.getElementById("dungeon");
 		const r = dungeon && $(dungeon).is(":visible") ? dungeon.getBoundingClientRect() : null;
-		const in_game = !!(r && r.width >= 10);
+		// the full-level map (X) is drawn by the 2D renderer, so step aside
+		const map_mode = dungeon_renderer.ui_state === enums.ui.VIEW_MAP;
+		const in_game = !!(r && r.width >= 10) && !map_mode;
 		const on = in_game && settings.enabled;
 		hud.set_active(on);
 		const bar = $("#three_toolbar");
@@ -642,6 +651,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud) {
 			s.atlas_tex.needsUpdate = true;
 			s.atlas_dirty = false;
 			refresh_sprites();
+			hud.refresh();
 		}
 		if (s.walls_dirty) rebuild_walls();
 		update_ground();

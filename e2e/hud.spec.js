@@ -68,6 +68,50 @@ test.describe("the 3D HUD", () => {
 		}
 		await expect(page.locator("#hud_time")).not.toHaveText(before);
 
+		// Minimap: drawn from the map, with the player marked
+		await expect(page.locator("#hud_map")).toBeVisible();
+		const lit = await page.evaluate(() => {
+			const c = document.getElementById("hud_map_canvas");
+			const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+			let n = 0;
+			for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 120) n++;
+			return n;
+		});
+		expect(lit).toBeGreaterThan(20);
+
+		// The monster panel only shows when something is in view.
+		if (await page.locator("#hud_mons").isVisible())
+			await expect(page.locator("#hud_mons .hud-mon").first()).toBeVisible();
+		else
+			await expect(page.locator("#hud_mons .hud-mon")).toHaveCount(0);
+
+		// The full map (X) is the 2D renderer's, so the 3D view steps aside.
+		await page.locator("#hud_map_full").click();
+		await expect(page.locator("#three_view")).toBeHidden();
+		await expect(page.locator("#hud_char")).toBeHidden();
+		await page.keyboard.press("Escape");
+		await expect(page.locator("#three_view")).toBeVisible();
+		await expect(page.locator("#hud_char")).toBeVisible();
+
+		// Hotbar slots send the game's keys: inventory opens the menu.
+		await expect(page.locator("#hud_bar .hud-slot")).toHaveCount(11);
+		await expect(page.locator("#hud_slot_fight .hud-key")).toHaveText("Tab");
+		await page.locator("#hud_slot_inventory").click();
+		await waitInPage(page, () => !!document.querySelector("#ui-stack > *"), "the inventory", 15000);
+		await page.keyboard.press("Escape");
+		await waitInPage(page, () => !document.querySelector("#ui-stack > *"), "the inventory to close", 15000);
+
+		// The minimap's explore button auto-explores, which takes time.
+		const before_explore = await page.locator("#hud_time").textContent();
+		await page.locator("#hud_map_explore").click();
+		await expect(page.locator("#hud_time")).not.toHaveText(before_explore, { timeout: 15000 });
+
+		// The coach strip can be dismissed, and stays dismissed.
+		await expect(page.locator("#hud_coach")).toBeVisible();
+		await page.locator("#hud_coach_close").click();
+		await expect(page.locator("#hud_coach")).toHaveCount(0);
+		expect(await page.evaluate(() => localStorage.getItem("crawl3d_coach_dismissed"))).toBe("1");
+
 		await page.screenshot({ path: testInfo.outputPath("hud.png") });
 		expect(errors).toEqual([]);
 	});
