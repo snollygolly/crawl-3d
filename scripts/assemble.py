@@ -4,9 +4,14 @@
   web/vendor-client/   stock WebTiles client from Crawl (static/, gamedata/, templates/)
   web/overrides/       our edited copies of stock client files (win over vendor-client)
   web/src/             our code: 3D view, worker, fake socket, start screen
-  engine-build/<build>/  the engine bundle named in engine.json
-                         (from scripts/build-engine.sh or scripts/pull-engine.sh)
+  public/              favicons and the hub's thumb.png, copied to the root as-is
   node_modules/three/  three.js
+  evilmouse.json       title and source link
+
+The engine bundle is NOT copied in. It's built locally (scripts/build-engine.sh), uploaded to
+the hub bucket with `npm run upload-engine`, and loaded at runtime from ENGINE_URL below, which
+the hub serves same-origin (spa-hub's /.hub/files/ route) and scripts/serve.mjs serves from
+engine-build/ locally. That keeps the build free of secrets and of the 46 MB engine.
 
 Usage: python3 scripts/assemble.py [--out dist]
 """
@@ -22,15 +27,25 @@ args = ap.parse_args()
 OUT = args.out
 
 engine = json.load(open(os.path.join(ROOT, "engine.json")))
-site = json.load(open(os.path.join(ROOT, "site.json")))
-ENGINE = os.path.join(ROOT, "engine-build", engine["build"])
+game_meta = json.load(open(os.path.join(ROOT, "evilmouse.json")))
+TITLE = game_meta["title"]
+SOURCE_URL = game_meta["links"]["github"]
 THREE = os.path.join(ROOT, "node_modules", "three", "build")
+PUBLIC = os.path.join(ROOT, "public")
 
-for path, hint in [(os.path.join(ENGINE, "crawl.wasm"),
-                    "run scripts/pull-engine.sh or scripts/build-engine.sh"),
-                   (os.path.join(THREE, "three.module.js"), "run npm install")]:
-    if not os.path.exists(path):
-        sys.exit("missing %s (%s)" % (os.path.relpath(path, ROOT), hint))
+# Where the engine bundle (crawl.js/.wasm/.data and gamedata/) is served from, absolute because
+# the hub serves the game from the root of its subdomain. Must match upload-engine.mjs's key.
+ENGINE_URL = "/.hub/files/engine/" + engine["build"]
+
+# Client modules the engine build generates (tile sheet indexes). They live in the engine bundle's
+# gamedata/, not in web/vendor-client, so RequireJS is pointed at the engine for each one. If a
+# Crawl upgrade adds or renames one, it shows up as a 404 in the e2e smoke spec.
+GENERATED_MODULES = ["tileinfo-floor", "tileinfo-wall", "tileinfo-feat", "tileinfo-player",
+                     "tileinfo-main", "tileinfo-gui", "tileinfo-icons", "tileinfo-dngn",
+                     "status-icon-sizes"]
+
+if not os.path.exists(os.path.join(THREE, "three.module.js")):
+    sys.exit("missing node_modules/three (run npm install)")
 
 if os.path.exists(OUT):
     shutil.rmtree(OUT)
@@ -39,12 +54,11 @@ os.makedirs(OUT)
 def copytree(src, dst):
     shutil.copytree(src, dst, dirs_exist_ok=True)
 
-# Stock client, then the generated tile files from the engine bundle, then
-# our overrides on top
+# Stock client, then our overrides on top
 copytree(os.path.join(VC, "static"), os.path.join(OUT, "static"))
 copytree(os.path.join(VC, "gamedata"), os.path.join(OUT, "gamedata"))
-copytree(os.path.join(ENGINE, "gamedata"), os.path.join(OUT, "gamedata"))
 copytree(os.path.join(WEB, "overrides"), OUT)
+copytree(PUBLIC, OUT)
 shutil.copy(os.path.join(WEB, "src", "three_view.js"), os.path.join(OUT, "gamedata"))
 
 # app.js uses absolute paths; make them relative so the site works in a subfolder
@@ -56,7 +70,15 @@ open(app_path, "w").write(app)
 
 # game.html, rendered the way the Python WebTiles server would
 game = open(os.path.join(VC, "templates", "game.html")).read()
-game = game.replace('"/gamedata/{{ version }}" }', '"../../gamedata" }')
+# Generated modules and tile sheets come from the engine bundle; the rest of gamedata/ is ours
+paths = {"game-local": "../../gamedata"}
+for m in GENERATED_MODULES:
+    paths["game-local/" + m] = ENGINE_URL + "/gamedata/" + m
+game = game.replace('paths: { "game-{{ version }}": "/gamedata/{{ version }}" },',
+                    "paths: " + json.dumps(paths) + ",")
+game, n = re.subn(r'src="/gamedata/{{ version }}/(\w+\.png)"',
+                  lambda m: 'src="%s/gamedata/%s"' % (ENGINE_URL, m.group(1)), game)
+assert n >= 7, "expected the tile sheet <img>s in game.html, found %d" % n
 game = game.replace("/gamedata/{{ version }}", "gamedata")
 game = game.replace("{{ version }}", "local")
 assert "{{" not in game and "{%" not in game
@@ -92,14 +114,16 @@ head_extra = """
     <script src="gamehtml.js"></script>
     <script src="fakesocket.js"></script>
     <link rel="stylesheet" type="text/css" href="crawl3d.css">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
 """
 html = html.replace("<title>WebTiles - Dungeon Crawl Stone Soup</title>",
-                    "<title>%s - a fan client for Dungeon Crawl Stone Soup</title>" % site["title"]
+                    "<title>%s - a fan client for Dungeon Crawl Stone Soup</title>" % TITLE
                     + head_extra, 1)
 html = html.replace('<meta name="viewport" content="width=860, initial-scale=1.0">',
                     '<meta name="viewport" content="width=device-width, initial-scale=1.0">')
 start = open(os.path.join(WEB, "src", "start.html")).read()
-start = start.replace("{{SOURCE_URL}}", site["sourceUrl"])
+start = start.replace("{{SOURCE_URL}}", SOURCE_URL)
 html = html.replace("<body>", "<body>\n" + start, 1)
 open(os.path.join(OUT, "index.html"), "w").write(html)
 
@@ -110,15 +134,12 @@ os.makedirs(os.path.join(OUT, "three"))
 for f in ["three.module.js", "three.core.js"]:
     shutil.copy(os.path.join(THREE, f), os.path.join(OUT, "three"))
 
-# engine/worker.js + engine/<build>/crawl.* (versioned, cacheable forever)
-eng_out = os.path.join(OUT, "engine", engine["build"])
-os.makedirs(eng_out)
+# engine/worker.js, pointed at the engine bundle
+os.makedirs(os.path.join(OUT, "engine"))
 worker = open(os.path.join(WEB, "src", "worker.js")).read()
-assert "__ENGINE_BUILD__" in worker
+assert "__ENGINE_URL__" in worker
 open(os.path.join(OUT, "engine", "worker.js"), "w").write(
-    worker.replace("__ENGINE_BUILD__", engine["build"]))
-for f in ["crawl.js", "crawl.wasm", "crawl.data"]:
-    shutil.copy(os.path.join(ENGINE, f), eng_out)
+    worker.replace("__ENGINE_URL__", ENGINE_URL))
 
 shutil.copy(os.path.join(ROOT, "LICENSE"), OUT)
 print("assembled %s (engine %s)" % (os.path.relpath(OUT, ROOT), engine["build"]))

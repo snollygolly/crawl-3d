@@ -2,8 +2,32 @@
 /vendor/crawl/*
 !/vendor/crawl/.gitkeep
 
-# build outputs
+# engine bundles (scripts/build-engine.sh), uploaded with npm run upload-engine
 /engine-build/
+
+# assembled site - the published artifact
 /dist/
+
 node_modules/
+
+# local settings — config.example.json is the template that's tracked
+config.json
+
+*.log
+npm-debug.log*
+
+.env
+.env.*
+
 .DS_Store
+
+# editor/OS cruft
+*.swp
+
+# coverage output (npm run test:coverage)
+coverage/
+
+# playwright output
+test-results/
+playwright-report/
+blob-report/

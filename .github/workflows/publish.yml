@@ -1,0 +1,19 @@
+# Copy into a game repo as .github/workflows/publish.yml.
+# Identical in every game; the slug comes from evilmouse.json.
+# If your hub repo is not snollygolly/spa-hub, change the "uses:" line.
+
+name: Publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    uses: snollygolly/spa-hub/.github/workflows/publish-game.yml@main
+    secrets: inherit
+    # Only needed when a game doesn't fit the defaults:
+    # with:
+    #   build-command: npm run build:prod
+    #   dist-dir: build

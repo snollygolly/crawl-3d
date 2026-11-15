@@ -1,0 +1,17 @@
+{
+  "id": "crawl-3d",
+  "title": "Crawl 3D",
+  "tagline": "Dungeon Crawl Stone Soup in your browser, in 3D.",
+  "body": "Dungeon Crawl Stone Soup 0.34 compiled to WebAssembly and running entirely in the browser, with a three.js third- or first-person view over the stock WebTiles interface. An unofficial fan client.",
+  "origin": "vibe",
+  "tags": ["Roguelike", "Dungeon Crawl", "Three.js", "WebAssembly"],
+  "links": { "play": null, "github": "https://github.com/snollygolly/crawl-3d" },
+  "site": { "hidden": true },
+  "hub": {
+    "slug": "crawl3d",
+    "listed": false,
+    "spa": false,
+    "immutable": [],
+    "headers": {}
+  }
+}
