@@ -16,6 +16,12 @@ The output is static files only. `npm run build` writes `dist/`, and `.github/wo
   - `sw.js`: the service worker that caches the engine per build;
   - `fakesocket.js`: replaces the client's WebSocket;
   - `start.html` and `crawl3d.css`.
+
+  `crawl3d.css` is our only stylesheet. The stock ones (`static/style.css`, `fonts.css`, `gamedata/style.css`, `simplebar.css`) are never edited. `assemble.py` loads them into `@layer stock`, and `crawl3d.css` stays unlayered, so any rule of ours beats stock CSS for the properties it sets, at any specificity and in any state (`:hover`, `:focus`). So:
+  - Don't stack ids (`#ui-stack #…`, `#hud_root #…`) to win.
+  - Use `!important` only against inline styles that JS sets.
+  - Scope 3D-only rules under `body.crawl3d-hud`.
+  - Our markup inside stock containers (e.g. `#hud_spells` in `#ui-stack`) still gets stock styling for whatever we don't set, focus looks included.
   three.js comes from `node_modules/three` and is exposed as `window.THREE`.
 - **Build**: `scripts/assemble.py` → `dist/`. It renders the client's Tornado templates, copies the client, our code, three.js and `public/`, and fills in the engine URL. The title and source link come from `evilmouse.json`.
 - **Engine**: Crawl at the commit pinned in `engine.json`, plus `engine/crawl.patch`.

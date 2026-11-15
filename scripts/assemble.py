@@ -54,6 +54,16 @@ os.makedirs(OUT)
 def copytree(src, dst):
     shutil.copytree(src, dst, dirs_exist_ok=True)
 
+def layer_stock_css(page, expected):
+    """Load a page's stock stylesheets into @layer stock. Unlayered rules beat layered ones
+    whatever their specificity, so crawl3d.css overrides stock CSS with plain selectors,
+    wherever on the page it loads."""
+    page, n = re.subn(r'<link\s+rel="stylesheet"\s+type="text/css"\s+href="([^"]+\.css)"\s*/?>',
+                      lambda m: '<style>@import url("%s") layer(stock);</style>' % m.group(1), page)
+    assert n == expected, "expected %d stock stylesheet <link>s, found %d" % (expected, n)
+    return page
+
+
 # Stock client, then our overrides on top
 copytree(os.path.join(VC, "static"), os.path.join(OUT, "static"))
 copytree(os.path.join(VC, "gamedata"), os.path.join(OUT, "gamedata"))
@@ -81,6 +91,7 @@ game, n = re.subn(r'src="/gamedata/{{ version }}/(\w+\.png)"',
                   lambda m: 'src="%s/gamedata/%s"' % (ENGINE_URL, m.group(1)), game)
 assert n >= 7, "expected the tile sheet <img>s in game.html, found %d" % n
 game = game.replace("/gamedata/{{ version }}", "gamedata")
+game = layer_stock_css(game, 2)
 game = game.replace("{{ version }}", "local")
 assert "{{" not in game and "{%" not in game
 open(os.path.join(OUT, "gamehtml.js"), "w").write(
@@ -103,6 +114,7 @@ html = re.sub(r'{{\s*static_url\("([^"]+)"\)\s*}}', r"static/\1", html)
 html = re.sub(r'<script type="text/javascript">.*?</script>', "", html, count=1, flags=re.S)
 html = html.replace('data-main="/static/scripts/app"', 'data-main="static/scripts/app"')
 html = html.replace('href="/static/', 'href="static/')
+html = layer_stock_css(html, 2)
 html = re.sub(r'\s*<img style="display:none;"[^>]*title_[^>]*>', "", html)  # lobby art
 assert "{{" not in html and "{%" not in html, re.findall(r"{[{%].*", html)[:3]
 

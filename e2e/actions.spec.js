@@ -44,6 +44,10 @@ test.describe("hotbar pickers and aiming", () => {
 		await expect(dart).toContainText("1 MP");
 		await expect(dart).toContainText(/\d+% fail/);
 		await expect(dart).toContainText(/range \d+/);
+		// Styled by crawl3d.css, not the stock "#ui-stack button" rule it sits under
+		await expect(dart).toHaveCSS("background-color", "rgb(28, 24, 19)");
+		await expect(dart).toHaveCSS("margin-left", "0px");
+		await expect(page.locator(".ui-popup.crawl3d-spells .menu_spell > :not(#hud_spells)").first()).toBeHidden();
 		await expect(page.locator("#hud_slot_cast .hud-count")).toHaveText("1");
 		await expect(page.locator("#hud_spells .hud-repeat")).toContainText("Magic Dart");
 		await page.screenshot({ path: testInfo.outputPath("spells.png") });

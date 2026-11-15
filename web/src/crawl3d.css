@@ -84,7 +84,7 @@ body.crawl3d-hud #chat_hidden { display: none !important; }
 /* The stock sidebar keeps running (the client writes into it), just unseen. */
 body.crawl3d-hud #right_column { visibility: hidden; }
 
-#hud_root .hud-panel,
+.hud-panel,
 body.crawl3d-hud #message_pane {
     position: fixed;
     z-index: 70;
@@ -230,7 +230,7 @@ body.crawl3d-hud #message_pane {
     flex-direction: column;
     gap: 8px;
 }
-#hud_root #hud_right .hud-panel { position: static; padding: 10px 12px; }
+#hud_right .hud-panel { position: static; padding: 10px 12px; }
 .hud-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; margin-bottom: 6px; }
 .hud-title { font: 14px var(--hud-serif); color: var(--hud-gold); }
 #hud_map_canvas {
@@ -280,7 +280,7 @@ body.crawl3d-hud #message_pane {
 .hud-threat.ally { background: #1f3a20; color: #8fe39b; }
 
 /* 5: hotbar */
-#hud_root #hud_bar {
+#hud_bar {
     left: 50%;
     bottom: 16px;
     transform: translateX(-50%);
@@ -337,7 +337,7 @@ body.crawl3d-hud #message_pane {
 
 /* Pickers: Fire / Quaff / Read (#hud_picker), and Cast, which redraws the
    engine's spell menu inside its own popup (#hud_spells) */
-#hud_root #hud_picker {
+#hud_picker {
     display: none;
     left: 50%;
     bottom: 112px;
@@ -422,7 +422,7 @@ body.crawl3d-hud #message_pane {
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
 }
 .ui-popup.crawl3d-spells .ui-popup-inner { display: block; width: 100%; }
-.ui-popup.crawl3d-spells .menu_spell > :not(#hud_spells) { display: none !important; }
+.ui-popup.crawl3d-spells .menu_spell > :not(#hud_spells) { display: none; }
 #hud_spells { color: var(--hud-text); font-family: var(--hud-sans); }
 #hud_spells .hud-head { align-items: center; }
 .hud-head-keys { display: flex; gap: 6px; margin-left: auto; padding-left: 24px; }
@@ -437,28 +437,16 @@ body.crawl3d-hud #message_pane {
 }
 .hud-head-keys button:hover { color: var(--hud-text); border-color: #5a4e3c; background: #262017; }
 .hud-head-keys b { color: var(--hud-text); font-weight: normal; }
-/* The spell panel sits inside the stock popup, whose "#ui-stack button" rule
-   (flex, margins, CRT font, black background) would otherwise win. */
-#ui-stack #hud_spells button { margin: 0; font-family: var(--hud-sans); }
-#ui-stack #hud_spells .hud-card { background: #1c1813; border: 1px solid #5a4e3c; padding: 6px 10px 6px 6px; }
-#ui-stack #hud_spells .hud-card:hover,
-#ui-stack #hud_spells .hud-card:focus { background: #262017; border-color: var(--hud-gold); }
-#ui-stack #hud_spells .hud-card.last { border-color: #b8924a; }
-#ui-stack #hud_spells .hud-head-keys button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    background: none;
-    border: 1px solid transparent;
-    padding: 2px 6px;
-    font-size: 11px;
-}
-#ui-stack #hud_spells .hud-head-keys button:hover { background: #262017; border-color: #5a4e3c; }
-#ui-stack #hud_spells .hud-close { display: inline; background: none; border: 0; padding: 0 2px; font-size: 13px; }
+/* Inside the stock popup, so the stock "#ui-stack button" and
+   "button:focus" looks apply to whatever we don't set here */
+#hud_spells button { margin: 0; font-family: var(--hud-sans); }
+#hud_spells .hud-card:focus { background: #262017; border-color: var(--hud-gold); }
+#hud_spells .hud-head-keys button { display: inline-flex; align-items: center; gap: 5px; }
+#hud_spells .hud-close { display: inline; padding: 0 2px; }
 #hud_spells .hud-card { flex-basis: 270px; }
 
 /* Aiming banner */
-#hud_root #hud_aim {
+#hud_aim {
     display: none;
     left: 50%;
     top: 84px;
@@ -471,7 +459,7 @@ body.crawl3d-hud #message_pane {
     font-size: 13px;
     white-space: nowrap;
 }
-#hud_root #hud_aim.on { display: flex; }
+#hud_aim.on { display: flex; }
 #hud_root.aiming #hud_coach { visibility: hidden; }
 #hud_aim button { pointer-events: auto; }
 #hud_aim .hud-aim-what b { color: #ffb199; }
@@ -487,7 +475,7 @@ body.crawl3d-hud #message_pane {
 #hud_aim button:hover { border-color: var(--hud-gold); }
 
 /* 10: coach strip */
-#hud_root #hud_coach {
+#hud_coach {
     left: 50%;
     top: 84px;
     transform: translateX(-50%);
@@ -504,16 +492,16 @@ body.crawl3d-hud #message_pane {
 #hud_coach button:hover { color: var(--hud-text); }
 
 /* 6: floor-context prompt, beside the player's feet (three_view places it) */
-#hud_root #hud_floor {
+#hud_floor {
     display: none;
     padding: 6px 10px;
     font-size: 13px;
     white-space: nowrap;
     z-index: 65;
 }
-#hud_root #hud_floor.docked {
-    left: 50% !important;
-    top: auto !important;
+#hud_floor.docked {
+    left: 50%;
+    top: auto;
     bottom: 104px;
     transform: translateX(-50%);
 }
@@ -524,7 +512,7 @@ body.crawl3d-hud #message_pane {
 .hud-floor-row button.hud-key:hover { border-color: var(--hud-gold); }
 
 /* 7: hover tooltip, with a leader line to the pointer */
-#hud_root #hud_tip {
+#hud_tip {
     display: none;
     width: max-content;
     max-width: 260px;
@@ -659,12 +647,11 @@ body.crawl3d-hud #action-panel-placeholder {
 #crawl3d_start ul { padding-left: 18px; color: #a89a80; font-size: 13px; }
 #crawl3d_start .fine { font-size: 12px; color: #7d7262; margin-top: 14px; }
 
-/* Last, so they override the panel rules above */
 /* Narrower windows: the hotbar gets the bottom row to itself */
 @media (max-width: 1720px) {
     body.crawl3d-hud #message_pane,
     body.crawl3d-hud #three_toolbar.hud { bottom: 104px; }
 }
 @media (max-width: 1100px) {
-    #hud_root #hud_coach { display: none; }
+    #hud_coach { display: none; }
 }
