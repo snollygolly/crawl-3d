@@ -339,7 +339,10 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 			t.flv = t.flv || {};
 			t.flv.f = t.flv.f || 0;
 			t.flv.s = t.flv.s || 0;
-			try { b.draw_background(0, 0, t); } catch (e) {}
+			// Statues, trees... stand as billboards, so the floor gets
+			// only what's under them.
+			const bt = tall_tiles.has(v) ? floor_bg_for(t) : t;
+			try { b.draw_background(0, 0, bt); } catch (e) {}
 			ctx.drawImage(b.canvas, px, py);
 			if (!map_knowledge.visible(cell))
 			{
@@ -349,6 +352,18 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 			}
 		}
 		s.atlas_dirty = true;
+	}
+
+	// A copy of a tall feature's tile data with the feature replaced by
+	// the floor beneath it: the floor flavour tile, or water for mangroves.
+	function floor_bg_for(t)
+	{
+		const water = !!t.mangrove_water;
+		const flv = t.flv || {};
+		return $.extend({}, t, {
+			bg: $.extend({}, t.bg, { value: water ? dngn.DNGN_SHALLOW_WATER : (flv.f || 0) }),
+			mangrove_water: false
+		});
 	}
 
 	function clear()
@@ -1046,6 +1061,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		settings: settings,
 		pick: pick,
 		project: project,
+		floor_bg_for: floor_bg_for,
 		is_active: function() { return !!state; }
 	};
 });
