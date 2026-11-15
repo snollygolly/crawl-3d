@@ -21,9 +21,10 @@ function engineBuild() {
 
 // Polls fn in the page until it returns truthy. The engine is slow to boot and to answer keys, and
 // nothing in the stock client signals "ready", so specs wait on the DOM the way a player would.
-async function waitInPage(page, fn, what, timeout = 120000) {
+// arg: optional value passed to fn in the page.
+async function waitInPage(page, fn, what, timeout = 120000, arg = null) {
 	try {
-		await page.waitForFunction(fn, null, { timeout, polling: 500 });
+		await page.waitForFunction(fn, arg, { timeout, polling: 500 });
 	} catch (err) {
 		throw new Error(`timed out waiting for ${what}: ${err.message}`);
 	}

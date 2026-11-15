@@ -112,6 +112,30 @@ test.describe("the 3D HUD", () => {
 		});
 		expect(lit).toBeGreaterThan(20);
 
+		// The minimap turns with the camera, around the player at its centre.
+		const map_state = () => page.evaluate(() => {
+			const c = document.getElementById("hud_map_canvas");
+			const ctx = c.getContext("2d");
+			const d = ctx.getImageData(0, 0, c.width, c.height).data;
+			const mid = ctx.getImageData(Math.floor(c.width / 2), Math.floor(c.height / 2), 1, 1).data;
+			let sum = 0;
+			for (let i = 0; i < d.length; i += 4) sum = (sum * 31 + d[i] + d[i + 1] * 7 + d[i + 2] * 13) % 1000000007;
+			return { yaw: Number(c.dataset.yaw), sum: sum, mid: mid[0] + mid[1] + mid[2] };
+		});
+		const map_before = await map_state();
+		expect(map_before.mid).toBeGreaterThan(600);
+		await page.locator("#hud_rotr").click();
+		await page.locator("#hud_rotr").click();
+		await waitInPage(page, y => Math.abs(Number(document.getElementById("hud_map_canvas").dataset.yaw)
+			- (y + Math.PI / 2)) < 0.02, "the minimap to turn", 5000, map_before.yaw);
+		const map_after = await map_state();
+		expect(map_after.sum).not.toBe(map_before.sum);
+		expect(map_after.mid).toBeGreaterThan(600);
+		await page.locator("#hud_rotl").click();
+		await page.locator("#hud_rotl").click();
+		await waitInPage(page, y => Math.abs(Number(document.getElementById("hud_map_canvas").dataset.yaw)
+			- y) < 0.02, "the minimap to turn back", 5000, map_before.yaw);
+
 		// The monster panel only shows when something is in view.
 		if (await page.locator("#hud_mons").isVisible())
 			await expect(page.locator("#hud_mons .hud-mon").first()).toBeVisible();

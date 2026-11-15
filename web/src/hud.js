@@ -7,7 +7,8 @@
 // hands it the player's tile for the portrait.
 //
 // It also draws its own minimap and "In view" monster list from
-// map_knowledge; three_view calls refresh() once per frame after map changes.
+// map_knowledge; three_view calls refresh() once per frame after map changes,
+// and set_map_yaw() every frame so the minimap turns with the camera.
 // Minimap buttons and most hotbar slots just send the game's own keys; Cast,
 // Fire, Quaff and Read open pickers instead (actions.js), which also handles
 // aiming.
@@ -167,6 +168,8 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions) {
 	let portrait = null;
 	let hooks = { can_act: () => true, icon_for: () => null };
 	let map_xf = null;
+	let map_buf = null;
+	let map_yaw = 0;
 	let coach_timer = null;
 	let hostiles = 0;
 	// what's on the player's square: { feature, items, items_at, pos }
@@ -181,6 +184,10 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions) {
 		root = $(TEMPLATE.trim()).appendTo("#game");
 		build_hotbar();
 		actions.init(root, { can_act: () => hooks.can_act() });
+		map_xf = null;
+		map_buf = null;
+		map_yaw = 0;
+		$("#hud_map_canvas").attr("data-yaw", "0.00");
 		bind_map();
 		start_coach();
 		$("#message_pane").prepend("<div id='hud_log_head'><span>Messages</span>"
@@ -300,7 +307,7 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions) {
 	function refresh()
 	{
 		if (!root || !active || !player.name) return;
-		draw_map();
+		build_map();
 		render_monsters();
 		render_hotbar();
 		render_floor();
@@ -458,11 +465,53 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions) {
 		}
 	}
 
-	function draw_map()
+	// The minimap turns with the camera: the player stays in the middle and
+	// "up" is the way the camera faces. build_map() draws the known level
+	// into map_buf after map changes; paint_map() blits it rotated, which is
+	// cheap enough to do every frame the camera turns.
+	function build_map()
 	{
 		const c = document.getElementById("hud_map_canvas");
 		const b = map_knowledge.bounds();
 		if (!c || !b) return;
+		const w = c.clientWidth; const h = c.clientHeight;
+		if (!w || !h) return;
+		const dpr = window.devicePixelRatio || 1;
+		const cols = b.right - b.left + 1; const rows = b.bottom - b.top + 1;
+		const cell = Math.max(1, Math.min(8, Math.floor(Math.min((w - 8) / cols, (h - 8) / rows))));
+		if (!map_buf) map_buf = document.createElement("canvas");
+		const bw = Math.ceil(cols * cell * dpr); const bh = Math.ceil(rows * cell * dpr);
+		if (map_buf.width !== bw || map_buf.height !== bh)
+		{
+			map_buf.width = bw;
+			map_buf.height = bh;
+		}
+		const ctx = map_buf.getContext("2d");
+		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		ctx.clearRect(0, 0, cols * cell, rows * cell);
+		for (let y = b.top; y <= b.bottom; y++)
+			for (let x = b.left; x <= b.right; x++)
+			{
+				const col = map_colour(map_knowledge.get(x, y).mf);
+				if (!col) continue;
+				ctx.fillStyle = col;
+				ctx.fillRect((x - b.left) * cell, (y - b.top) * cell, cell, cell);
+			}
+		const on = map_knowledge.player_on_level();
+		map_xf = { left: b.left, top: b.top, cell: cell, on: on,
+			// the map point (in cells) shown at the canvas centre
+			cx: on ? player.pos.x + 0.5 : b.left + cols / 2,
+			cy: on ? player.pos.y + 0.5 : b.top + rows / 2 };
+		let title = $("#hud_place").text().replace("The Dungeon", "Dungeon");
+		if (!title) title = "Map";
+		$("#hud_map_title").text(title);
+		paint_map();
+	}
+
+	function paint_map()
+	{
+		const c = document.getElementById("hud_map_canvas");
+		if (!c || !map_xf || !map_buf) return;
 		const dpr = window.devicePixelRatio || 1;
 		const w = c.clientWidth; const h = c.clientHeight;
 		if (!w || !h) return;
@@ -471,37 +520,72 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions) {
 			c.width = Math.round(w * dpr);
 			c.height = Math.round(h * dpr);
 		}
+		const xf = map_xf; const cell = xf.cell;
 		const ctx = c.getContext("2d");
 		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 		ctx.fillStyle = "#050505";
 		ctx.fillRect(0, 0, w, h);
-		const cols = b.right - b.left + 1; const rows = b.bottom - b.top + 1;
-		const cell = Math.max(1, Math.min(8, Math.floor(Math.min((w - 8) / cols, (h - 8) / rows))));
-		const ox = Math.floor((w - cols * cell) / 2); const oy = Math.floor((h - rows * cell) / 2);
-		map_xf = { left: b.left, top: b.top, cell: cell, ox: ox, oy: oy };
-		for (let y = b.top; y <= b.bottom; y++)
-			for (let x = b.left; x <= b.right; x++)
-			{
-				const col = map_colour(map_knowledge.get(x, y).mf);
-				if (!col) continue;
-				ctx.fillStyle = col;
-				ctx.fillRect(ox + (x - b.left) * cell, oy + (y - b.top) * cell, cell, cell);
-			}
-		if (map_knowledge.player_on_level())
+
+		// Forward is (sin yaw, -cos yaw) on the map, so turning the map by
+		// -yaw puts it at the top.
+		ctx.save();
+		ctx.translate(w / 2, h / 2);
+		ctx.rotate(-map_yaw);
+		ctx.translate(-(xf.cx - xf.left) * cell, -(xf.cy - xf.top) * cell);
+		ctx.imageSmoothingEnabled = false;
+		ctx.drawImage(map_buf, 0, 0, map_buf.width / dpr, map_buf.height / dpr);
+		ctx.restore();
+
+		const mx = w / 2; const my = h / 2;
+		if (xf.on)
 		{
-			const px = ox + (player.pos.x - b.left + 0.5) * cell;
-			const py = oy + (player.pos.y - b.top + 0.5) * cell;
 			ctx.strokeStyle = "rgba(255, 215, 122, 0.45)";
 			ctx.beginPath();
-			ctx.arc(px, py, cell * 2.5 + 4, 0, Math.PI * 2);
+			ctx.arc(mx, my, cell * 2.5 + 4, 0, Math.PI * 2);
 			ctx.stroke();
-			const r = Math.max(2, cell * 0.75);
+			// the player, as an arrow pointing the way the camera faces
+			const r = Math.max(4, cell * 1.1);
 			ctx.fillStyle = "#fff";
-			ctx.fillRect(px - r, py - r, r * 2, r * 2);
+			ctx.strokeStyle = "#000";
+			ctx.lineWidth = 1;
+			ctx.beginPath();
+			ctx.moveTo(mx, my - r);
+			ctx.lineTo(mx + r * 0.75, my + r * 0.8);
+			ctx.lineTo(mx, my + r * 0.4);
+			ctx.lineTo(mx - r * 0.75, my + r * 0.8);
+			ctx.closePath();
+			ctx.fill();
+			ctx.stroke();
 		}
-		let title = $("#hud_place").text().replace("The Dungeon", "Dungeon");
-		if (!title) title = "Map";
-		$("#hud_map_title").text(title);
+
+		// "N" on the edge, the way north lies
+		const nx = -Math.sin(map_yaw); const ny = -Math.cos(map_yaw);
+		const reach = Math.min((w / 2 - 10) / Math.max(Math.abs(nx), 1e-6),
+			(h / 2 - 10) / Math.max(Math.abs(ny), 1e-6));
+		ctx.font = "bold 11px sans-serif";
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+		ctx.fillStyle = "#d8b56a";
+		ctx.fillText("N", mx + nx * reach, my + ny * reach);
+	}
+
+	// three_view calls this every frame with the camera's (smoothed) yaw.
+	function set_map_yaw(yaw)
+	{
+		if (Math.abs(yaw - map_yaw) < 0.002) return;
+		map_yaw = yaw;
+		$("#hud_map_canvas").attr("data-yaw", yaw.toFixed(2));
+		if (root && active) paint_map();
+	}
+
+	// Canvas CSS pixels -> map cell, undoing paint_map's transform.
+	function map_cell_at(px, py, w, h)
+	{
+		const xf = map_xf;
+		const dx = px - w / 2; const dy = py - h / 2;
+		const cos = Math.cos(map_yaw); const sin = Math.sin(map_yaw);
+		const rx = dx * cos - dy * sin; const ry = dx * sin + dy * cos;
+		return { x: Math.floor(xf.cx + rx / xf.cell), y: Math.floor(xf.cy + ry / xf.cell) };
 	}
 
 	function bind_map()
@@ -511,8 +595,8 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions) {
 		c.on("mouseup", function(ev) {
 			if (!map_xf || !hooks.can_act()) return;
 			const r = this.getBoundingClientRect();
-			const x = Math.floor((ev.clientX - r.left - map_xf.ox) / map_xf.cell) + map_xf.left;
-			const y = Math.floor((ev.clientY - r.top - map_xf.oy) / map_xf.cell) + map_xf.top;
+			const p = map_cell_at(ev.clientX - r.left, ev.clientY - r.top, r.width, r.height);
+			const x = p.x; const y = p.y;
 			const cell = map_knowledge.get(x, y);
 			if (!cell || !cell.mf) return;
 			comm.send_message("click_cell", { x: x, y: y, button: ev.button === 2 ? 3 : 1 });
@@ -846,6 +930,7 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions) {
 		cleanup: cleanup,
 		set_active: set_active,
 		set_portrait: set_portrait,
+		set_map_yaw: set_map_yaw,
 		is_active: function() { return active; }
 	};
 });

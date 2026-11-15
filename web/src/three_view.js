@@ -828,6 +828,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 		s.cam_yaw = s.cam_yaw === undefined ? settings.yaw
 			: s.cam_yaw + angle_diff(settings.yaw, s.cam_yaw) * (1 - Math.exp(-dt * 10));
 		const cf = new THREE.Vector3(Math.sin(s.cam_yaw), 0, -Math.cos(s.cam_yaw));
+		hud.set_map_yaw(s.cam_yaw);
 		if (settings.mode === "first")
 		{
 			cam.fov = 75;
