@@ -108,6 +108,11 @@ assert "{{" not in html and "{%" not in html, re.findall(r"{[{%].*", html)[:3]
 
 head_extra = """
     <script>var socket_server = "local"; var game_version = "";</script>
+    <script>
+      // Caches the engine per build (sw.js). Needs https or localhost; elsewhere it just downloads.
+      if ("serviceWorker" in navigator)
+        navigator.serviceWorker.register("sw.js").catch(function (e) { console.warn("sw.js", e); });
+    </script>
     <script type="module">
       import * as THREE from "./three/three.module.js";
       window.THREE = THREE;
@@ -141,6 +146,12 @@ worker = open(os.path.join(WEB, "src", "worker.js")).read()
 assert "__ENGINE_URL__" in worker
 open(os.path.join(OUT, "engine", "worker.js"), "w").write(
     worker.replace("__ENGINE_URL__", ENGINE_URL))
+
+# sw.js, which caches that engine build in the browser. At the root, so its scope is the site.
+sw = open(os.path.join(WEB, "src", "sw.js")).read()
+assert "__ENGINE_URL__" in sw and "__ENGINE_BUILD__" in sw
+open(os.path.join(OUT, "sw.js"), "w").write(
+    sw.replace("__ENGINE_URL__", ENGINE_URL).replace("__ENGINE_BUILD__", engine["build"]))
 
 shutil.copy(os.path.join(ROOT, "LICENSE"), OUT)
 print("assembled %s (engine %s)" % (os.path.relpath(OUT, ROOT), engine["build"]))

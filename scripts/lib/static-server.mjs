@@ -7,6 +7,10 @@ import http from "node:http";
 import path from "node:path";
 
 export const ENGINE_URL_PREFIX = "/.hub/files/engine/";
+// Engine builds are immutable, so like the hub, let browsers cache them forever. The site itself
+// is revalidated on every load.
+export const ENGINE_CACHE_CONTROL = "public, max-age=31536000, immutable";
+export const SITE_CACHE_CONTROL = "no-cache";
 
 const TYPES = {
 	".html": "text/html; charset=utf-8",
@@ -43,7 +47,7 @@ export function resolvePath(urlPath, { distDir, engineDir }) {
 	if (decoded.startsWith(ENGINE_URL_PREFIX)) {
 		const rest = decoded.slice(ENGINE_URL_PREFIX.length);
 		if (!rest || rest.endsWith("/")) return { error: 400 };
-		return { file: path.join(engineDir, ...rest.split("/")) };
+		return { file: path.join(engineDir, ...rest.split("/")), engine: true };
 	}
 	let rel = segments.join("/");
 	if (rel === "" || rel.endsWith("/")) rel += "index.html";
@@ -62,7 +66,7 @@ export function createStaticServer({ distDir, engineDir }) {
 		if (r.error) return send(res, r.error, "Bad request\n");
 		fs.stat(r.file, (err, st) => {
 			if (err || !st.isFile()) return send(res, 404, "Not found\n");
-			res.writeHead(200, { "Content-Type": mimeFor(r.file), "Content-Length": st.size, "Cache-Control": "no-cache" });
+			res.writeHead(200, { "Content-Type": mimeFor(r.file), "Content-Length": st.size, "Cache-Control": r.engine ? ENGINE_CACHE_CONTROL : SITE_CACHE_CONTROL });
 			if (req.method === "HEAD") return res.end();
 			fs.createReadStream(r.file).pipe(res);
 		});

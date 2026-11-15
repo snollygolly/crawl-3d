@@ -48,12 +48,21 @@
           document.getElementById("crawl3d_play").disabled = true;
           input.disabled = true;
           window.crawl3d_status("Starting the engine...");
-          (function go() {
+          function go() {
             // ?seed=123 in the URL starts a game with a fixed dungeon seed
             var m = /[?&]seed=(\d+)/.exec(location.search);
             var args = m ? ["-seed", m[1]] : [];
             if (!window.crawl3d_start || !window.crawl3d_start(name, args)) setTimeout(go, 100);
-          })();
+          }
+          // On a first visit, wait (briefly) for sw.js to take control of the page, so the engine
+          // download goes through it and is cached for next time.
+          var sw = navigator.serviceWorker;
+          if (!sw || sw.controller) return go();
+          var started = false;
+          function once() { if (!started) { started = true; go(); } }
+          setTimeout(once, 3000);
+          sw.addEventListener("controllerchange", once);
+          sw.ready.then(function () { if (sw.controller) once(); });
         });
         input.focus();
         input.select();

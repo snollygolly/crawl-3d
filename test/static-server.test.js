@@ -20,7 +20,7 @@ test("site paths map into dist/, with index.html for directories", async() => {
 test("the hub's engine path maps into engine-build/", async() => {
 	const { resolvePath } = await lib();
 	assert.deepStrictEqual(resolvePath("/.hub/files/engine/0.34.1-b1/crawl.wasm", dirs),
-		{ file: path.join("/site/engine-build", "0.34.1-b1/crawl.wasm") });
+		{ file: path.join("/site/engine-build", "0.34.1-b1/crawl.wasm"), engine: true });
 	assert.deepStrictEqual(resolvePath("/.hub/files/engine/", dirs), { error: 400 });
 	assert.deepStrictEqual(resolvePath("/.hub/files/engine/b1/", dirs), { error: 400 });
 });
@@ -69,6 +69,15 @@ test("serves the site and the engine", async() => {
 	assert.strictEqual((await wasm.arrayBuffer()).byteLength, 4);
 	const head = await fetch(`${base}/`, { method: "HEAD" });
 	assert.strictEqual(head.headers.get("content-length"), "9");
+});
+
+test("the engine is cached forever, the site is revalidated", async() => {
+	const { ENGINE_CACHE_CONTROL, SITE_CACHE_CONTROL } = await lib();
+	const wasm = await fetch(`${base}/.hub/files/engine/b1/crawl.wasm`);
+	assert.strictEqual(wasm.headers.get("cache-control"), ENGINE_CACHE_CONTROL);
+	assert.match(ENGINE_CACHE_CONTROL, /immutable/);
+	const page = await fetch(`${base}/`);
+	assert.strictEqual(page.headers.get("cache-control"), SITE_CACHE_CONTROL);
 });
 
 test("404, 400 and 405", async() => {

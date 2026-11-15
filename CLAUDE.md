@@ -12,6 +12,7 @@ The output is static files only. `npm run build` writes `dist/`, and `.github/wo
   - `hud.js`: the panel HUD over the full-window 3D view (3D mode only; 2D keeps the stock layout), an AMD module;
   - `tile_names.js`: readable names and actions for feature and item tiles, inverted from the generated `tileinfo-*` modules;
   - `worker.js`: runs the engine in a Web Worker and plays the WebTiles server;
+  - `sw.js`: the service worker that caches the engine per build;
   - `fakesocket.js`: replaces the client's WebSocket;
   - `start.html` and `crawl3d.css`.
   three.js comes from `node_modules/three` and is exposed as `window.THREE`.
@@ -22,6 +23,7 @@ The output is static files only. `npm run build` writes `dist/`, and `.github/wo
   - `npm run upload-engine` uploads that bundle to the hub bucket at `games/crawl3d/files/engine/<build>/`, using credentials from `~/.env.hub`.
   - The hub serves it same-origin at `/.hub/files/engine/<build>/` (spa-hub's `src/files.js`). The worker (`ENGINE_URL`), the tile sheet `<img>`s and the generated `tileinfo-*` modules (`GENERATED_MODULES` in `assemble.py`) all load from there.
   - Builds are immutable: bump `build` in `engine.json` for every new engine.
+  - The browser keeps the engine in Cache Storage, one cache per build (`crawl3d-engine-<build>`), via the service worker `web/src/sw.js` (assembled to `dist/sw.js` with the build filled in). It's cache-first for engine URLs only, drops other builds' caches when a new build activates, and needs a secure context (https or `localhost`). `serve.mjs` also sends the hub's `immutable` header for engine files.
 - **Local server**: `scripts/serve.mjs` (`scripts/lib/static-server.mjs`, no dependencies) serves `dist/`, and serves `engine-build/<build>/` at the same `/.hub/files/engine/<build>/` path, so local runs match production without a hub. `npm start` builds then serves. Port and host come from `config.mjs`.
 - **Config**: `config.mjs` reads `config.json` (gitignored; template `config.example.json`) with env overrides (`PORT`, `HOST`). Default port 8765, host `0.0.0.0`. Never put secrets in it.
 - **Unit tests**: Node's built-in runner (`node --test`), files in `test/`. `npm run test:coverage` enforces 90% lines/functions and 85% branches over `config.mjs` and `scripts/lib/`. Keep testable Node logic in `scripts/lib/`. The client code is covered by e2e, not unit tests.
