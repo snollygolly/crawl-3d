@@ -27,6 +27,9 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 	// drawn at GHOST_OPACITY (third person only).
 	const GHOST_R = 1.6;
 	const GHOST_OPACITY = 0.28;
+	// Sprites face the camera but are depth-tested as an upright card this
+	// far toward the camera from their tile centre (see upright_depth()).
+	const SPRITE_DEPTH_PUSH = 0.55;
 
 	// everything per game; null until init
 	let state = null;
@@ -279,6 +282,42 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 				`void main() {\n\tif (${test}) discard;`);
 			shader.fragmentShader = `varying float vGhost;\n${frag}`;
 		};
+	}
+
+	// A sprite quad faces the camera, so with the camera looking down its
+	// top leans back into the wall behind its tile, and at 1.5 tiles wide it
+	// pokes into the walls beside it; the depth test then cuts heads and
+	// wide art off. Keep the look, but give each pixel the depth it would
+	// have on an upright card standing in the sprite's tile, pushed
+	// SPRITE_DEPTH_PUSH toward the camera: walls behind or beside the tile
+	// are always farther, walls in front still hide it. Depth is linear in
+	// screen space over a plane, so setting it per corner is exact.
+	function upright_depth(mat)
+	{
+		mat.customProgramCacheKey = function() { return "sprite-upright"; };
+		mat.onBeforeCompile = function(shader) {
+			const code = [
+				"{",
+				"  vec3 A = modelViewMatrix[3].xyz;",
+				"  vec3 up = normalize(mat3(viewMatrix) * vec3(0.0, 1.0, 0.0));",
+				"  vec3 h = -A - dot(-A, up) * up;",
+				"  float hl = length(h);",
+				"  if (hl > 1e-3) {",
+				"    vec3 n = h / hl;",
+				`    vec3 P = A + n * ${SPRITE_DEPTH_PUSH.toFixed(3)};`,
+				"    float vn = dot(mvPosition.xyz, n);",
+				"    float t = abs(vn) > 1e-5 ? dot(P, n) / vn : -1.0;",
+				"    if (t > 0.0) {",
+				"      vec4 clip = projectionMatrix * vec4(mvPosition.xyz * t, 1.0);",
+				"      gl_Position.z = clamp(clip.z / clip.w, -1.0, 1.0) * gl_Position.w;",
+				"    }",
+				"  }",
+				"}",
+				"#include <logdepthbuf_vertex>"
+			].join("\n");
+			shader.vertexShader = shader.vertexShader.replace("#include <logdepthbuf_vertex>", code);
+		};
+		return mat;
 	}
 
 	// CPU twin of the ghost test in ghost_shader(), for picking.
@@ -660,8 +699,8 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 				let e = s.sprites[key];
 				if (!e)
 				{
-					const mat = new THREE.SpriteMaterial({
-						transparent: true, alphaTest: 0.05, fog: true });
+					const mat = upright_depth(new THREE.SpriteMaterial({
+						transparent: true, alphaTest: 0.05, fog: true }));
 					const sp = new THREE.Sprite(mat);
 					sp.center.set(0.5, 0.0);
 					sp.scale.set(1.5, 2.0, 1);
@@ -1148,6 +1187,8 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 		floor_bg_for: floor_bg_for,
 		is_standing: is_standing,
 		aim_loc: function() { return state && state.aim.visible ? aim_loc() : null; },
+		upright_depth: upright_depth,
+		WALL_H: WALL_H,
 		is_active: function() { return !!state; }
 	};
 });
