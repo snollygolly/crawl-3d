@@ -1,0 +1,22 @@
+{
+  "name": "crawl3d",
+  "private": true,
+  "description": "Dungeon Crawl Stone Soup in the browser (wasm) with a three.js 3D view",
+  "license": "GPL-2.0-or-later",
+  "scripts": {
+    "fetch-engine": "bash scripts/fetch-engine.sh",
+    "build-engine": "bash scripts/build-engine.sh",
+    "build-engine:docker": "bash scripts/build-engine-docker.sh",
+    "upload-engine": "bash scripts/upload-engine.sh",
+    "pull-engine": "bash scripts/pull-engine.sh",
+    "assemble": "python3 scripts/assemble.py",
+    "dev": "python3 scripts/assemble.py && python3 -m http.server 8765 --directory dist",
+    "test:smoke": "node tests/smoke.js"
+  },
+  "dependencies": {
+    "three": "0.187.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.0"
+  }
+}

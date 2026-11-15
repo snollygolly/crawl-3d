@@ -1,0 +1,9 @@
+# Crawl's source is fetched by scripts/fetch-engine.sh, not committed
+/vendor/crawl/*
+!/vendor/crawl/.gitkeep
+
+# build outputs
+/engine-build/
+/dist/
+node_modules/
+.DS_Store

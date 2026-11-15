@@ -1,0 +1,66 @@
+# Deploy the site on every push to main. The engine is NOT built here: it's
+# built locally (scripts/build-engine.sh), uploaded with
+# scripts/upload-engine.sh, and pinned by "build" in engine.json.
+#
+# Adapt the S3 bits to match your other Spa Hub projects. Repo settings:
+#   secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#   vars:    AWS_REGION, S3_BUCKET, ENGINE_PREFIX (e.g. crawl3d/engine),
+#            SITE_PREFIX (where Spa Hub serves this game from)
+name: deploy-site
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency: deploy-site
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      S3_BUCKET: ${{ vars.S3_BUCKET }}
+      ENGINE_PREFIX: ${{ vars.ENGINE_PREFIX }}
+      SITE_PREFIX: ${{ vars.SITE_PREFIX }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --omit=dev
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Cache engine bundle
+        uses: actions/cache@v4
+        with:
+          path: engine-build
+          key: engine-${{ hashFiles('engine.json') }}
+
+      - name: Pull engine bundle pinned in engine.json
+        run: bash scripts/pull-engine.sh
+
+      - name: Assemble site
+        run: python3 scripts/assemble.py
+
+      - name: Upload engine (versioned folder, immutable; skipped if unchanged)
+        run: |
+          BUILD=$(python3 -c "import json; print(json.load(open('engine.json'))['build'])")
+          DEST="s3://$S3_BUCKET/$SITE_PREFIX/engine/$BUILD"
+          IMMUTABLE="public, max-age=31536000, immutable"
+          aws s3 sync "dist/engine/$BUILD" "$DEST" --size-only --cache-control "$IMMUTABLE" \
+            --exclude "*" --include "*.wasm" --content-type application/wasm
+          aws s3 sync "dist/engine/$BUILD" "$DEST" --size-only --cache-control "$IMMUTABLE" \
+            --exclude "*.wasm"
+
+      - name: Upload everything else
+        run: |
+          aws s3 sync dist "s3://$S3_BUCKET/$SITE_PREFIX" --delete \
+            --exclude "engine/*/*" \
+            --cache-control "public, max-age=300"

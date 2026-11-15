@@ -1,0 +1,61 @@
+    <div id="crawl3d_start">
+      <div class="panel">
+        <h1>Crawl 3D</h1>
+        <p class="sub">Dungeon Crawl Stone Soup 0.34, running entirely in your browser, with a 3D view.</p>
+        <form id="crawl3d_form" autocomplete="off">
+          <label for="crawl3d_name">Character name</label>
+          <input id="crawl3d_name" class="text" maxlength="20" pattern="[A-Za-z0-9_\-]+" required>
+          <button id="crawl3d_play" type="submit">Play</button>
+        </form>
+        <div class="status" id="crawl3d_status"></div>
+        <ul>
+          <li>Arrow keys move relative to the camera. Shift+arrow runs.</li>
+          <li>Drag to orbit, scroll to zoom, click a square to travel, right-click to describe.</li>
+          <li>All the normal Crawl keys work (vi-keys and numpad move in fixed directions).</li>
+          <li>Your game saves in this browser. Ctrl-S saves and quits.</li>
+        </ul>
+        <p class="fine">Fan-made, unofficial. Dungeon Crawl Stone Soup is GPL-2.0+ by the DCSS devteam.
+          <a href="{{SOURCE_URL}}" target="_blank" rel="noopener" style="color:#c9b88f">Source code</a></p>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var input = document.getElementById("crawl3d_name");
+        var stored = "";
+        try { stored = localStorage.getItem("crawl3d_name") || ""; } catch (e) {}
+        input.value = stored || "Adventurer";
+        window.crawl3d_status = function (text) {
+          document.getElementById("crawl3d_status").textContent = text || "";
+        };
+        window.crawl3d_hide_start = function () {
+          document.getElementById("crawl3d_start").style.display = "none";
+        };
+        window.crawl3d_game_over = function (info) {
+          var box = document.getElementById("crawl3d_start");
+          box.style.display = "flex";
+          var why = info.reason === "saved" ? "Game saved."
+                  : info.reason === "dead" ? "You died."
+                  : info.reason === "crash" ? "The game crashed: " + info.message
+                  : "The game ended" + (info.message ? ": " + info.message : ".");
+          box.querySelector(".panel").innerHTML =
+            "<h1>Crawl 3D</h1><p class='sub'>" + why.replace(/</g, "&lt;") + "</p>" +
+            "<button onclick='location.reload()'>Play again</button>";
+        };
+        document.getElementById("crawl3d_form").addEventListener("submit", function (ev) {
+          ev.preventDefault();
+          var name = input.value.trim().replace(/[^A-Za-z0-9_\-]/g, "").slice(0, 20) || "Adventurer";
+          try { localStorage.setItem("crawl3d_name", name); } catch (e) {}
+          document.getElementById("crawl3d_play").disabled = true;
+          input.disabled = true;
+          window.crawl3d_status("Starting the engine...");
+          (function go() {
+            // ?seed=123 in the URL starts a game with a fixed dungeon seed
+            var m = /[?&]seed=(\d+)/.exec(location.search);
+            var args = m ? ["-seed", m[1]] : [];
+            if (!window.crawl3d_start || !window.crawl3d_start(name, args)) setTimeout(go, 100);
+          })();
+        });
+        input.focus();
+        input.select();
+      })();
+    </script>

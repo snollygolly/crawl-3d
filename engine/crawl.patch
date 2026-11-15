@@ -1,0 +1,258 @@
+diff --git a/crawl-ref/source/crash.cc b/crawl-ref/source/crash.cc
+index 76a5fc6..fa09d7d 100644
+--- a/crawl-ref/source/crash.cc
++++ b/crawl-ref/source/crash.cc
+@@ -10,7 +10,7 @@
+ #if defined(UNIX)
+ #include <unistd.h>
+ #include <sys/param.h>
+-#ifndef __HAIKU__
++#if !defined(__HAIKU__) && !defined(__EMSCRIPTEN__)
+         #define BACKTRACE_SUPPORTED
+ #endif
+ #endif
+diff --git a/crawl-ref/source/database.cc b/crawl-ref/source/database.cc
+index ee400e5..4322479 100644
+--- a/crawl-ref/source/database.cc
++++ b/crawl-ref/source/database.cc
+@@ -251,7 +251,11 @@ bool TextDB::_needs_update() const
+         full_input_path = datafile_path(full_input_path, !_parent);
+         // packagers who mess with mtime beware: you shouldn't put the db in
+         // a shared folder, as a fixed mtime will break this check.
++#ifdef __EMSCRIPTEN__
++        time_t mtime = 1;
++#else
+         time_t mtime = file_modtime(full_input_path);
++#endif
+         const bool exists = file_exists(full_input_path);
+         if (exists || !_parent)
+         {
+@@ -319,7 +323,11 @@ void TextDB::_regenerate_db()
+         string full_input_path = _directory + file;
+         full_input_path = datafile_path(full_input_path, !_parent);
+         char buf[20];
++#ifdef __EMSCRIPTEN__
++        time_t mtime = 1;
++#else
+         time_t mtime = file_modtime(full_input_path);
++#endif
+         if (file_exists(full_input_path)
+             || !_parent) // english is mandatory
+         {
+diff --git a/crawl-ref/source/libunix.cc b/crawl-ref/source/libunix.cc
+index fb8d0f1..6867f6b 100644
+--- a/crawl-ref/source/libunix.cc
++++ b/crawl-ref/source/libunix.cc
+@@ -14,6 +14,9 @@
+    Jan 1998 Svante Gerhard <svante@algonet.se>                          */
+ 
+ #include "AppHdr.h"
++#ifdef __EMSCRIPTEN__
++#include <emscripten.h>
++#endif
+ 
+ #define _LIBUNIX_IMPLEMENTATION
+ #include "libunix.h"
+@@ -1844,9 +1847,14 @@ void delay(unsigned int time)
+     }
+ #endif
+ 
++#ifdef __EMSCRIPTEN__
++    // The browser client applies the delay itself; just yield.
++    emscripten_sleep(0);
++#else
+     refresh();
+     if (time)
+         usleep(time * 1000);
++#endif
+ }
+ 
+ static bool _headless_kbhit()
+diff --git a/crawl-ref/source/maps.cc b/crawl-ref/source/maps.cc
+index 2485a77..eb53b42 100644
+--- a/crawl-ref/source/maps.cc
++++ b/crawl-ref/source/maps.cc
+@@ -1397,7 +1397,12 @@ static bool _load_map_cache(const string &filename, const string &cachename)
+     file_lock deslock(descache_base + ".lk", "rb", false);
+ 
+     // What's the point in checking these twice (here and in load_ma_index)?
++#ifdef __EMSCRIPTEN__
++    // packaged data never changes within a build; mtimes are per page load
++    time_t mtime = 1;
++#else
+     time_t mtime = file_modtime(filename);
++#endif
+     if (!_verify_map_index(descache_base, mtime)
+         || !_verify_map_full(descache_base, mtime))
+     {
+@@ -1501,7 +1506,12 @@ static void _parse_maps(const string &s)
+     // won't be seen by the user unless they look for it
+     mprf(MSGCH_PLAIN, "Regenerating des: %s", s.c_str());
+ 
++#ifdef __EMSCRIPTEN__
++    // packaged data never changes within a build; mtimes are per page load
++    time_t mtime = 1;
++#else
+     time_t mtime = file_modtime(dat);
++#endif
+     _reset_map_parser();
+ 
+     extern int yyparse();
+diff --git a/crawl-ref/source/tileweb.cc b/crawl-ref/source/tileweb.cc
+index 2c8f7dc..979d03d 100644
+--- a/crawl-ref/source/tileweb.cc
++++ b/crawl-ref/source/tileweb.cc
+@@ -15,6 +15,24 @@
+ #if defined(UNIX) || defined(TARGET_COMPILER_MINGW)
+ #include <unistd.h>
+ #endif
++#ifdef __EMSCRIPTEN__
++#include <emscripten.h>
++// Bridge to the browser: output goes to JS, input comes from a JS queue.
++EM_JS(void, wasm_post_output, (const char* s, int len), {
++  self.crawlOut(UTF8ToString(s, len));
++});
++EM_JS(int, wasm_input_pending, (), {
++  return self.crawlInputQueue.length;
++});
++EM_JS(char*, wasm_input_pop, (), {
++  var s = self.crawlInputQueue.shift();
++  if (s === undefined) return 0;
++  var n = lengthBytesUTF8(s) + 1;
++  var p = _malloc(n);
++  stringToUTF8(s, p, n);
++  return p;
++});
++#endif
+ 
+ #include "artefact.h"
+ #include "branch.h"
+@@ -111,6 +129,9 @@ void TilesFramework::shutdown()
+ {
+     if (m_sock_name.empty())
+         return;
++#ifdef __EMSCRIPTEN__
++    return;
++#endif
+ 
+     close(m_sock);
+     remove(m_sock_name.c_str());
+@@ -132,6 +153,16 @@ bool TilesFramework::initialise()
+     if (m_sock_name.empty())
+         return true;
+ 
++#ifdef __EMSCRIPTEN__
++    m_max_msg_size = 1 << 30;
++    if (m_await_connection)
++        _await_connection();
++    _send_version();
++    send_exit_reason("unknown");
++    send_options();
++    _send_layout();
++    return true;
++#endif
+     // Init socket
+     m_sock = socket(PF_UNIX, SOCK_DGRAM, 0);
+     if (m_sock < 0)
+@@ -201,6 +232,12 @@ void TilesFramework::finish_message()
+         return;
+     }
+ 
++#ifdef __EMSCRIPTEN__
++    wasm_post_output(m_msg_buf.data(), (int) m_msg_buf.size());
++    m_msg_buf.clear();
++    m_need_flush = true;
++    return;
++#endif
+     m_msg_buf.append("\n");
+     const char* fragment_start = m_msg_buf.data();
+     const char* data_end = m_msg_buf.data() + m_msg_buf.size();
+@@ -337,6 +374,25 @@ wint_t TilesFramework::_receive_control_message()
+     if (m_sock_name.empty())
+         return 0;
+ 
++#ifdef __EMSCRIPTEN__
++    {
++        char* p;
++        while (!(p = wasm_input_pop()))
++            emscripten_sleep(8);
++        string data(p);
++        free(p);
++        sockaddr_un fake;
++        memset(&fake, 0, sizeof(fake));
++        try
++        {
++            return _handle_control_message(fake, data);
++        }
++        catch (JsonWrapper::MalformedException&)
++        {
++            return 0;
++        }
++    }
++#endif
+     char buf[4096]; // Should be enough for client->server messages
+     sockaddr_un srcaddr;
+     socklen_t srcaddr_len;
+@@ -641,6 +697,15 @@ wint_t TilesFramework::try_await_input()
+     if (c != 0)
+         return c;
+ 
++#ifdef __EMSCRIPTEN__
++    while (wasm_input_pending())
++    {
++        c = _receive_control_message();
++        if (c != 0)
++            return c;
++    }
++    return 0;
++#endif
+     fd_set fds;
+     int result;
+     while (true)
+@@ -689,6 +754,20 @@ wint_t TilesFramework::await_input(bool(*has_console_input)())
+     if (c != 0)
+         return c;
+ 
++#ifdef __EMSCRIPTEN__
++    while (true)
++    {
++        tiles.flush_messages();
++        if (wasm_input_pending())
++        {
++            c = _receive_control_message();
++            if (c != 0)
++                return c;
++        }
++        else
++            emscripten_sleep(8);
++    }
++#endif
+     int result;
+     fd_set fds;
+     int maxfd = m_sock;
+diff --git a/crawl-ref/source/ui.cc b/crawl-ref/source/ui.cc
+index 744b710..2a596cc 100644
+--- a/crawl-ref/source/ui.cc
++++ b/crawl-ref/source/ui.cc
+@@ -4,6 +4,9 @@
+ **/
+ 
+ #include "AppHdr.h"
++#ifdef __EMSCRIPTEN__
++#include <emscripten.h>
++#endif
+ 
+ #include <numeric>
+ #include <stack>
+@@ -3387,7 +3390,11 @@ void delay(unsigned int ms)
+             .count();
+         if (remaining < 0)
+             break;
++#ifdef __EMSCRIPTEN__
++        emscripten_sleep(max(0, min(poll_interval, remaining)));
++#else
+         usleep(max(0, min(poll_interval, remaining)));
++#endif
+         if (kbhit())
+             pump_events();
+     }

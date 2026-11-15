@@ -1,0 +1,73 @@
+#three_view {
+    position: absolute;
+    z-index: 50;
+    overflow: hidden;
+    cursor: crosshair;
+    touch-action: none;
+}
+#three_view canvas { display: block; }
+#three_toolbar {
+    position: absolute;
+    z-index: 60;
+    display: flex;
+    gap: 6px;
+    font: 13px/1 system-ui, sans-serif;
+}
+#three_toolbar button {
+    background: rgba(20, 16, 30, 0.8);
+    color: #e8dcc0;
+    border: 1px solid #6b5a3a;
+    border-radius: 4px;
+    padding: 5px 9px;
+    cursor: pointer;
+}
+#three_toolbar button:hover { background: rgba(60, 45, 25, 0.9); }
+
+#crawl3d_start {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    background: radial-gradient(ellipse at center, #241a12 0%, #060408 70%);
+    color: #e8dcc0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: 15px/1.5 system-ui, sans-serif;
+}
+#crawl3d_start .panel {
+    max-width: 520px;
+    padding: 28px 32px;
+    border: 1px solid #6b5a3a;
+    border-radius: 8px;
+    background: rgba(10, 8, 12, 0.85);
+}
+#crawl3d_start h1 {
+    margin: 0 0 4px;
+    font: 600 28px/1.2 Georgia, serif;
+    color: #f3d38a;
+}
+#crawl3d_start .sub { color: #a89a80; margin: 0 0 18px; }
+#crawl3d_start label { display: block; margin-bottom: 6px; }
+#crawl3d_start input {
+    font: inherit;
+    padding: 6px 8px;
+    width: 220px;
+    background: #15111a;
+    color: #fff;
+    border: 1px solid #6b5a3a;
+    border-radius: 4px;
+}
+#crawl3d_start button {
+    font: inherit;
+    padding: 6px 16px;
+    margin-left: 8px;
+    background: #8a6a2a;
+    color: #fff;
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+}
+#crawl3d_start button:disabled { opacity: 0.5; cursor: default; }
+#crawl3d_start .status { margin-top: 14px; min-height: 1.5em; color: #c9b88f; }
+#crawl3d_start ul { padding-left: 18px; color: #a89a80; font-size: 13px; }
+#crawl3d_start .fine { font-size: 12px; color: #7d7262; margin-top: 14px; }
