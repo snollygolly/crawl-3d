@@ -610,6 +610,55 @@ body.crawl3d-hud .ui-popup.crawl3d-desc .describe-item > .header > canvas {
     image-rendering: pixelated;
 }
 body.crawl3d-hud .ui-popup.crawl3d-desc .describe-item > .header > span { font: 16px var(--hud-serif); color: var(--hud-gold); }
+body.crawl3d-hud .describe-item > .header > .hud-desc-close {
+    align-self: flex-start;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    margin: -4px -6px 0 auto;
+    padding: 0;
+    border-radius: 6px;
+    font-size: 16px;
+    line-height: 28px;
+}
+body.crawl3d-hud .describe-item > .header > .hud-desc-close:hover { background: #2c241a; }
+
+/* Item description: the engine's stash search terms and menu colouring
+   prefixes as chips (inventory.js tagify_desc), and its quote */
+body.crawl3d-hud .describe-item .hud-desc-tags {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 14px 0 4px;
+    padding-top: 10px;
+    border-top: 1px solid #3b3227;
+    white-space: normal;
+}
+.hud-tag-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.hud-tag-label {
+    width: 52px;
+    color: var(--hud-dim);
+    font: 10px var(--hud-sans);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.hud-tag {
+    padding: 1px 8px;
+    background: #1c1813;
+    border: 1px solid #5a4e3c;
+    border-radius: 10px;
+    color: #f2cf6b;
+    font: 12px var(--hud-sans);
+}
+.hud-tag.dim { color: var(--hud-dim); }
+body.crawl3d-hud .describe-item pre.hud-desc-quote {
+    margin-top: 14px;
+    padding-left: 12px;
+    border-left: 2px solid #5a4e3c;
+    font-family: var(--hud-serif);
+    font-style: italic;
+    white-space: pre-wrap;
+}
 body.crawl3d-hud .describe-item > .actions.hud-actions {
     display: flex;
     flex-wrap: wrap;

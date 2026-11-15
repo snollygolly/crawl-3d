@@ -106,6 +106,21 @@ test.describe("the inventory sheet", () => {
 		await page.locator("#hud_inv_slot_body").click();
 		await expect(page.locator("#ui-stack .describe-item .header")).toContainText("leather armour");
 
+		// Its stash search terms are chips, not "Stash search prefixes: {...}".
+		const desc = page.locator("#ui-stack .describe-item");
+		await expect(desc.locator(".hud-desc-tags .hud-tag", { hasText: /^inventory$/ })).toBeVisible();
+		await expect(desc.locator(".body")).not.toContainText("Stash search prefixes");
+		await expect(desc.locator(".body")).not.toContainText("____");
+		await expect(desc.locator("pre.hud-desc-quote")).toContainText("Blake");
+		await page.screenshot({ path: testInfo.outputPath("desc.png") });
+
+		// The close button closes it, back to the sheet.
+		await desc.locator(".hud-desc-close").click();
+		await expect(desc).toHaveCount(0);
+		await expect(page.locator("#hud_inv")).toBeVisible();
+		await page.locator("#hud_inv_slot_body").click();
+		await expect(page.locator("#ui-stack .describe-item .header")).toContainText("leather armour");
+
 		// Take it off and wear it again from the sheet: it stays open throughout.
 		const act = verb => page.locator("#ui-stack .describe-item .hud-act", { hasText: verb });
 		await act("Take off").click();

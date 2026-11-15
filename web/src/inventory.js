@@ -27,7 +27,8 @@
 // we press Right until its category comes up, then send the letter.
 //
 // The item description's actions ("(q)uaff, (d)rop, or (i)nscribe.") are
-// turned into buttons while the HUD is on.
+// turned into buttons while the HUD is on, it gets a close button, and its
+// trailing stash search / menu colouring prefixes become rows of chips.
 //
 // Any action closes the engine's menu. For gear actions (wear, take off,
 // drop...) the sheet then reopens itself once the engine is waiting for a
@@ -115,6 +116,9 @@ function($, comm, player, util, enums, names, main, actions) {
 		$(document).on("click.inventory", "#ui-stack .describe-item .hud-act", function() {
 			reopen_at = sheet && STAY.test($(this).attr("data-verb") || "") ? performance.now() : 0;
 		});
+		$(document).on("click.inventory", "#ui-stack .describe-item .hud-desc-close", function() {
+			send_key(KEY.ESC);
+		});
 		bound = true;
 	}
 
@@ -172,7 +176,7 @@ function($, comm, player, util, enums, names, main, actions) {
 			if (msg.mode === enums.mouse_mode.COMMAND) maybe_reopen();
 			break;
 		case "ui-push":
-			if (msg.type === "describe-item" && active) buttonize_actions();
+			if (msg.type === "describe-item" && active) dress_desc();
 			break;
 		}
 	}
@@ -605,14 +609,24 @@ function($, comm, player, util, enums, names, main, actions) {
 	}
 
 	// ------------------------------------------------------------------
-	// item description: actions as buttons
+	// item description: a close button, actions as buttons, tags as chips
 
-	function buttonize_actions()
+	function dress_desc()
 	{
-		const acts = $("#ui-stack .describe-item > .actions").last();
-		if (!acts.length || acts.hasClass("hud-actions")) return;
+		const popup = $("#ui-stack .describe-item").last();
+		if (!popup.length || popup.hasClass("hud-desc")) return;
+		popup.addClass("hud-desc");
+		popup.closest(".ui-popup").addClass("crawl3d-desc");
+		popup.children(".header")
+			.append("<button class='hud-close hud-desc-close' title='Close (Esc)'>✕</button>");
+		tagify_desc(popup.children(".body"));
+		buttonize_actions(popup.children(".actions"));
+	}
+
+	function buttonize_actions(acts)
+	{
+		if (!acts.length) return;
 		acts.addClass("hud-actions");
-		acts.closest(".ui-popup").addClass("crawl3d-desc");
 		// drop the ", " and ", or " between actions, and the final "."
 		acts.contents().filter(function() { return this.nodeType === 3; }).remove();
 		acts.children("span[data-hotkey]").each(function() {
@@ -625,6 +639,49 @@ function($, comm, player, util, enums, names, main, actions) {
 				.append($("<span class='hud-key'>").text(key), $("<span>").text(nice));
 			if (PRIMARY.test(label)) span.addClass("primary");
 		});
+	}
+
+	// The engine ends a full item description with its stash search terms
+	// and menu colouring prefixes (describe.cc), then a "____" rule and the
+	// quote, all as text. Show the first two as rows of chips, and style
+	// the quote instead of the rule.
+	function tagify_desc(body)
+	{
+		const pre = body.find("pre").filter(function() {
+			return /^\s*Stash search prefixes:/.test($(this).text());
+		}).last();
+		if (!pre.length) return;
+		const lines = pre.html().split(/<br\s*\/?>/i).map(h => $("<div>").html(h).text().trim());
+		const tags = $("<div class='hud-desc-tags'>");
+		const row = (label, title, chips) => {
+			if (!chips.length) return;
+			const r = $("<div class='hud-tag-row'>").attr("title", title)
+				.append($("<span class='hud-tag-label'>").text(label));
+			for (const c of chips) r.append(c);
+			tags.append(r);
+		};
+		let rule = false;
+		for (const line of lines)
+		{
+			let m;
+			if ((m = /^Stash search prefixes:(.*)$/.exec(line)))
+			{
+				const terms = [...m[1].matchAll(/\{([^}]+)\}/g)].map(t => t[1].trim()).filter(Boolean);
+				row("Search", "Ctrl-F (stash search) finds this item by these",
+					terms.map(t => $("<span class='hud-tag'>").text(t)));
+			}
+			else if ((m = /^Menu\/colouring prefixes:(.*)$/.exec(line)))
+			{
+				const words = m[1].trim();
+				// one chip: the prefixes are space-joined and some are two words
+				row("Menu", "What menu_colour and autopickup rules match this item by",
+					words ? [$("<span class='hud-tag dim'>").text(words)] : []);
+			}
+			else if (/^_{3,}$/.test(line))
+				rule = true;
+		}
+		if (rule) pre.nextAll("pre").addClass("hud-desc-quote");
+		pre.replaceWith(tags);
 	}
 
 	return {
