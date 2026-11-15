@@ -10,8 +10,8 @@
 // Monster sprites are tracked by monster id and glide between cells, which
 // hides the turn-based steps.
 define(["jquery", "comm", "./map_knowledge", "./cell_renderer", "./player",
-	"./tileinfo-dngn", "./enums"],
-function($, comm, map_knowledge, cr, player, dngn, enums) {
+	"./tileinfo-dngn", "./enums", "./hud"],
+function($, comm, map_knowledge, cr, player, dngn, enums, hud) {
 	"use strict";
 
 	let THREE = null;
@@ -212,6 +212,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums) {
 		s.raycaster = new THREE.Raycaster();
 		s.last_time = performance.now();
 
+		hud.init();
 		build_toolbar();
 		bind_input();
 		apply_enabled();
@@ -226,6 +227,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums) {
 		state.renderer.dispose();
 		state.container.remove();
 		$("#three_toolbar").remove();
+		hud.cleanup();
 		window.removeEventListener("keydown", state.key_handler, true);
 		$(window).off(".t3d");
 		state = null;
@@ -572,6 +574,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums) {
 					e.sig = sig;
 					e.sprite.material.map = texture_for(cell, x, y, sig);
 					e.sprite.material.needsUpdate = true;
+					if (key === "player") hud.set_portrait(e.sprite.material.map.image);
 				}
 				// Lone items sit smaller on the floor; creatures stand tall
 				const small = !cell.mon && key !== "player" && !cell.t.doll
@@ -590,30 +593,36 @@ function($, comm, map_knowledge, cr, player, dngn, enums) {
 	// ------------------------------------------------------------------
 	// Frame loop: camera follow, sprite gliding, rendering
 
+	// In 3D the view fills the window and the HUD panels sit on top of it;
+	// in 2D the stock layout comes back with the view switcher over the map.
 	function layout()
 	{
 		const s = state;
 		const dungeon = document.getElementById("dungeon");
 		const r = dungeon && $(dungeon).is(":visible") ? dungeon.getBoundingClientRect() : null;
+		const in_game = !!(r && r.width >= 10);
+		const on = in_game && settings.enabled;
+		hud.set_active(on);
 		const bar = $("#three_toolbar");
-		if (r && r.width >= 10)
-			bar.show().css({ left: r.left + window.scrollX + 8,
-				top: r.top + window.scrollY + 8 });
-		else
+		if (!in_game)
 			bar.hide();
-		if (!r || r.width < 10 || !settings.enabled)
+		else if (on)
+			bar.show().addClass("hud").css({ left: "", top: "" });
+		else
+			bar.show().removeClass("hud").css({ left: r.left + window.scrollX + 8,
+				top: r.top + window.scrollY + 8 });
+		if (!on)
 		{
 			s.container.hide();
 			return false;
 		}
-		s.container.show().css({ left: r.left + window.scrollX,
-			top: r.top + window.scrollY,
-			width: r.width, height: r.height });
-		if (s.w !== r.width || s.h !== r.height)
+		s.container.show();
+		const w = window.innerWidth; const h = window.innerHeight;
+		if (s.w !== w || s.h !== h)
 		{
-			s.w = r.width; s.h = r.height;
-			s.renderer.setSize(r.width, r.height);
-			s.camera.aspect = r.width / r.height;
+			s.w = w; s.h = h;
+			s.renderer.setSize(w, h);
+			s.camera.aspect = w / h;
 			s.camera.updateProjectionMatrix();
 		}
 		return true;
@@ -875,31 +884,42 @@ function($, comm, map_knowledge, cr, player, dngn, enums) {
 	}
 
 	// ------------------------------------------------------------------
-	// Small toolbar overlay
+	// View switcher: 2D · 3rd person · 1st person, plus rotate buttons
 
 	function build_toolbar()
 	{
 		$("#three_toolbar").remove();
 		const bar = $("<div id='three_toolbar'>" +
-            "<button data-act='toggle3d'></button>" +
-            "<button data-act='mode'></button>" +
-            "<button data-act='rotl' title='Rotate view left'>&#x27F2;</button>" +
-            "<button data-act='rotr' title='Rotate view right'>&#x27F3;</button>" +
-            "</div>").appendTo(document.body);
+			"<div class='seg'>" +
+			"<button id='hud_view_2d' data-act='2d' title='Classic 2D tiles view'>2D</button>" +
+			"<button id='hud_view_third' data-act='third' title='Camera behind and above you'>3rd person</button>" +
+			"<button id='hud_view_first' data-act='first' title='See through your eyes'>1st person</button>" +
+			"</div>" +
+			"<button id='hud_rotl' data-act='rotl' title='Rotate the view left (or drag the view)'>&#x27F2; Rotate</button>" +
+			"<button id='hud_rotr' data-act='rotr' title='Rotate the view right (or drag the view)'>Rotate &#x27F3;</button>" +
+			"</div>").appendTo(document.body);
 		function label()
 		{
-			bar.find("[data-act=toggle3d]").text(settings.enabled ? "2D view" : "3D view");
-			bar.find("[data-act=mode]").text(settings.mode === "first" ? "Third person" : "First person")
-				.toggle(settings.enabled);
+			const cur = !settings.enabled ? "2d" : settings.mode;
+			bar.find("[data-act]").each(function() {
+				$(this).toggleClass("on", $(this).data("act") === cur);
+			});
 			bar.find("[data-act=rotl],[data-act=rotr]").toggle(settings.enabled);
 		}
-		bar.on("click", "button", function(ev) {
+		bar.on("click", "button", function() {
 			const act = $(this).data("act");
-			if (act === "toggle3d") { settings.enabled = !settings.enabled; apply_enabled(); }
-			else if (act === "mode")
+			if (act === "2d")
 			{
-				settings.mode = settings.mode === "first" ? "third" : "first";
-				if (settings.mode === "first") face_open_direction();
+				settings.enabled = false;
+				apply_enabled();
+			}
+			else if (act === "third" || act === "first")
+			{
+				const was = settings.enabled ? settings.mode : null;
+				settings.enabled = true;
+				settings.mode = act;
+				if (act === "first" && was !== "first") face_open_direction();
+				apply_enabled();
 			}
 			else if (act === "rotl") settings.yaw -= Math.PI / 4;
 			else if (act === "rotr") settings.yaw += Math.PI / 4;

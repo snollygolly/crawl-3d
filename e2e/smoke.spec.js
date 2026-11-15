@@ -1,7 +1,7 @@
 "use strict";
 
 const { test, expect } = require("./fixtures");
-const { press, engineBuild, waitInPage } = require("./helpers");
+const { press, engineBuild, waitInPage, startGame } = require("./helpers");
 
 const engine = engineBuild();
 
@@ -33,24 +33,8 @@ test.describe("with the engine", () => {
 			if (r.status() >= 400) missing.push(`${r.status()} ${r.url()}`);
 		});
 
-		// A fixed dungeon seed keeps the walk below on open floor.
-		await page.goto("/?seed=42");
-		await page.locator("#crawl3d_name").fill("Smoke");
-		await press(page.locator("#crawl3d_play"), testInfo);
-		await waitInPage(page, () => !!document.querySelector("#ui-stack > *"), "the species menu");
-
-		// Minotaur, Fighter, war axe
-		for (const k of ["b", "a", "c"]) {
-			await page.keyboard.press(k);
-			await page.waitForTimeout(1200);
-		}
-		await waitInPage(page, () => {
-			const t = document.getElementById("stats_time");
-			return t && t.textContent.trim() !== "";
-		}, "the game to start");
-
-		await waitInPage(page, () => requirejs("game-local/three_view").is_active()
-			&& !!document.querySelector("#three_view canvas"), "the 3D view", 15000);
+		// The fixed dungeon seed keeps the walk below on open floor.
+		await startGame(page, testInfo);
 
 		// Walk away from the stairs; at least one step should take a turn.
 		for (const k of ["j", "j", "l", "h", "k", "k"]) {

@@ -1,27 +1,272 @@
+/* ------------------------------------------------------------------
+   3D view and view switcher */
+
+:root {
+    --hud-panel: rgba(14, 12, 10, 0.82);
+    --hud-border: rgba(217, 179, 108, 0.45);
+    --hud-gold: #d9b36c;
+    --hud-text: #e8e2d4;
+    --hud-dim: #9a927f;
+    --hud-chip: #221d17;
+    --hud-chip-border: #4a4134;
+    --hud-sans: "DejaVu Sans", Arial, sans-serif;
+    --hud-mono: "DejaVu Sans Mono", monospace;
+    --hud-serif: "DejaVu Serif", Georgia, serif;
+}
+
 #three_view {
-    position: absolute;
+    position: fixed;
+    inset: 0;
     z-index: 50;
     overflow: hidden;
     cursor: crosshair;
     touch-action: none;
 }
 #three_view canvas { display: block; }
+
 #three_toolbar {
     position: absolute;
     z-index: 60;
     display: flex;
     gap: 6px;
-    font: 13px/1 system-ui, sans-serif;
+    align-items: center;
+    font: 12px/1 var(--hud-sans);
 }
+#three_toolbar .seg { display: flex; gap: 2px; }
 #three_toolbar button {
     background: rgba(20, 16, 30, 0.8);
-    color: #e8dcc0;
+    color: var(--hud-text);
     border: 1px solid #6b5a3a;
-    border-radius: 4px;
-    padding: 5px 9px;
+    border-radius: 5px;
+    padding: 6px 10px;
     cursor: pointer;
+    font: inherit;
 }
 #three_toolbar button:hover { background: rgba(60, 45, 25, 0.9); }
+#three_toolbar button.on {
+    background: var(--hud-gold);
+    border-color: var(--hud-gold);
+    color: #1a140c;
+    font-weight: 700;
+}
+#three_toolbar.hud {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 70;
+    padding: 6px;
+    background: var(--hud-panel);
+    border: 1px solid var(--hud-border);
+    border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
+}
+#three_toolbar.hud button { background: transparent; border-color: transparent; }
+#three_toolbar.hud button:hover { background: rgba(217, 179, 108, 0.15); }
+#three_toolbar.hud button.on { background: var(--hud-gold); color: #1a140c; }
+#three_toolbar.hud button[data-act^=rot] { color: var(--hud-dim); }
+
+/* ------------------------------------------------------------------
+   HUD (3D mode only: three_view.js puts .crawl3d-hud on <body>) */
+
+#hud_root { display: none; }
+body.crawl3d-hud #hud_root { display: block; }
+
+/* The stock sidebar keeps running (the client writes into it), just unseen. */
+body.crawl3d-hud #right_column { visibility: hidden; }
+
+#hud_root .hud-panel,
+body.crawl3d-hud #message_pane {
+    position: fixed;
+    z-index: 70;
+    background: var(--hud-panel);
+    border: 1px solid var(--hud-border);
+    border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
+    color: var(--hud-text);
+    font-family: var(--hud-sans);
+}
+#hud_root .dim { color: var(--hud-dim); }
+.hud-key {
+    display: inline-block;
+    min-width: 18px;
+    padding: 1px 5px;
+    border: 1px solid #6d6150;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: #221d17;
+    color: #f0d9a4;
+    font: 600 11px var(--hud-mono);
+    text-align: center;
+}
+
+/* 1: character card */
+#hud_char { left: 16px; top: 16px; width: 340px; padding: 12px; }
+#hud_char .hud-top { display: flex; gap: 12px; align-items: center; }
+.hud-port {
+    position: relative;
+    flex: 0 0 60px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid var(--hud-gold);
+    background: radial-gradient(circle at 50% 35%, #3b5fb0, #14213d);
+}
+.hud-port canvas { width: 56px; height: 56px; border-radius: 50%; image-rendering: pixelated; }
+.hud-xl {
+    position: absolute;
+    bottom: -6px;
+    right: -10px;
+    background: var(--hud-gold);
+    color: #1a140c;
+    font: 700 11px var(--hud-sans);
+    border-radius: 10px;
+    padding: 2px 6px;
+    white-space: nowrap;
+}
+.hud-who { flex: 1; min-width: 0; }
+.hud-name { font: 19px var(--hud-serif); color: var(--hud-gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-sub { font-size: 12px; color: var(--hud-dim); }
+.hud-xpbar { height: 4px; background: #2a2420; border-radius: 2px; margin-top: 7px; overflow: hidden; }
+#hud_xp_fill { height: 100%; background: var(--hud-gold); transition: width 0.4s; }
+.hud-xptext { font-size: 10px; color: var(--hud-dim); margin-top: 2px; }
+
+.hud-bar {
+    position: relative;
+    height: 20px;
+    margin-top: 8px;
+    border-radius: 5px;
+    background: #2a2420;
+    border: 1px solid #000;
+    overflow: hidden;
+}
+.hud-bar > div { position: absolute; left: 0; top: 0; bottom: 0; width: 0; }
+.hud-bar .ghost { background: rgba(255, 225, 225, 0.55); transition: width 0.6s ease 0.4s; }
+.hud-bar.rising .ghost { transition: none; }
+#hud_hp .poison { background: linear-gradient(#a65fd8, #5e2a8a); }
+#hud_hp .fill { background: linear-gradient(#ff7387, #c42f48); }
+#hud_mp .fill { background: linear-gradient(#6f8cff, #3048b8); }
+.hud-bar > span {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px;
+    font: 600 12px var(--hud-mono);
+    color: #fff;
+    text-shadow: 0 1px 2px #000;
+}
+#hud_hp.low { animation: hud-pulse 1s ease-in-out infinite; }
+@keyframes hud-pulse {
+    50% { box-shadow: 0 0 10px 2px rgba(255, 60, 80, 0.85); border-color: #ff3c50; }
+}
+
+.hud-chips { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
+.hud-chip {
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background: var(--hud-chip);
+    border: 1px solid var(--hud-chip-border);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.hud-chip.dim { color: var(--hud-dim); }
+.hud-chip.best { color: #9fc0ff; }
+.hud-chip.drained { color: #ff8a8a; border-color: #6b2f2f; }
+
+.hud-status { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
+.hud-light, .hud-noise {
+    font: 11px var(--hud-sans);
+    padding: 3px 7px;
+    border-radius: 4px;
+    border: 1px solid currentColor;
+    background: rgba(0, 0, 0, 0.35);
+    cursor: default;
+}
+.hud-noise { color: #8fe39b; }
+.hud-noise[data-level=loud] { color: #ffcc77; }
+.hud-noise[data-level=veryloud] { color: #ff9a4a; }
+.hud-noise[data-level=superloud] { color: #ff5c5c; }
+.hud-noise[data-level=blank] { color: #9fc0ff; }
+
+/* 2: location banner */
+#hud_loc {
+    left: 50%;
+    top: 16px;
+    transform: translateX(-50%);
+    padding: 7px 22px;
+    text-align: center;
+    white-space: nowrap;
+}
+.hud-place { font: 18px var(--hud-serif); }
+.hud-time { font: 12px var(--hud-mono); color: var(--hud-dim); }
+#hud_loc.flash { animation: hud-flash 1.6s ease-out; }
+@keyframes hud-flash {
+    0% { box-shadow: 0 0 0 0 rgba(255, 215, 122, 0.9); transform: translateX(-50%) scale(1.12); }
+    100% { box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6); transform: translateX(-50%) scale(1); }
+}
+
+/* 8: message log -- the stock pane, moved into a panel */
+#hud_log_head { display: none; }
+body.crawl3d-hud #message_pane {
+    left: 16px;
+    bottom: 16px;
+    width: min(470px, calc(100vw - 32px));
+    padding: 8px 12px;
+    background: linear-gradient(rgba(14, 12, 10, 0.4), rgba(14, 12, 10, 0.88));
+    font: 13px/1.5 var(--hud-mono);
+}
+body.crawl3d-hud #hud_log_head {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font: 11px var(--hud-sans);
+    color: var(--hud-dim);
+}
+body.crawl3d-hud #hud_log_head > span:first-child {
+    color: var(--hud-gold);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+body.crawl3d-hud #messages_container {
+    width: auto !important;
+    max-height: 7.5em !important;
+    /* older lines fade out toward the top */
+    -webkit-mask-image: linear-gradient(transparent, #000 2.2em);
+    mask-image: linear-gradient(transparent, #000 2.2em);
+}
+body.crawl3d-hud #messages { line-height: 1.5em; }
+body.crawl3d-hud #messages .game_message[data-turn]::before {
+    content: attr(data-turn);
+    display: inline-block;
+    min-width: 3.5em;
+    margin-right: 4px;
+    color: #6f6757;
+    font-size: 11px;
+}
+body.crawl3d-hud #more {
+    color: #1a140c;
+    background: var(--hud-gold);
+    border-radius: 4px;
+    padding: 1px 8px;
+    margin-top: 4px;
+    display: inline-block;
+    font-weight: 700;
+}
+body.crawl3d-hud #more[style*="display: none"] { display: none !important; }
+
+/* The stock consumables bar, pinned to the left edge */
+body.crawl3d-hud #action-panel,
+body.crawl3d-hud #action-panel-placeholder {
+    position: fixed;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 70;
+}
 
 #crawl3d_start {
     position: fixed;

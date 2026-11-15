@@ -7,8 +7,9 @@ The output is static files only. `npm run build` writes `dist/`, and `.github/wo
 ## Tech stack
 
 - **Runtime**: Node.js 22+ and Python 3 for tooling only; nothing runs server-side.
-- **Client**: the stock WebTiles client (RequireJS + jQuery, `web/vendor-client/`), our edited copies of a few of its files (`web/overrides/`), and our code in `web/src/`:
+- **Client**: the stock WebTiles client (RequireJS + jQuery, `web/vendor-client/`), our edited copies of a few of its files (`web/overrides/`: `display.js` feeds the 3D view, `player.js` and `messages.js` add hooks for the HUD), and our code in `web/src/`:
   - `three_view.js`: the 3D view, an AMD module;
+  - `hud.js`: the panel HUD over the full-window 3D view (3D mode only; 2D keeps the stock layout), an AMD module;
   - `worker.js`: runs the engine in a Web Worker and plays the WebTiles server;
   - `fakesocket.js`: replaces the client's WebSocket;
   - `start.html` and `crawl3d.css`.
