@@ -11,6 +11,7 @@ The output is static files only. `npm run build` writes `dist/`, and `.github/wo
   - `three_view.js`: the 3D view, an AMD module;
   - `hud.js`: the panel HUD over the full-window 3D view (3D mode only; 2D keeps the stock layout), an AMD module;
   - `actions.js`: the hotbar's Cast / Fire / Quaff / Read pickers and the aiming banner, an AMD module. Cast redraws the engine's own spell menu as cards; it watches messages by wrapping `comm.handle_message`;
+  - `inventory.js`: the Inventory character sheet (paper doll of equipment slots plus a bag of item tiles), drawn inside the engine's own `i` menu, which is also where it reads what's equipped. It also turns item descriptions' actions into buttons;
   - `tile_names.js`: readable names and actions for feature and item tiles, inverted from the generated `tileinfo-*` modules;
   - `worker.js`: runs the engine in a Web Worker and plays the WebTiles server;
   - `sw.js`: the service worker that caches the engine per build;

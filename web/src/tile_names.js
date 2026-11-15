@@ -1,5 +1,5 @@
-// tile_names.js -- readable names for tiles, for the HUD's tooltips and
-// floor prompt.
+// tile_names.js -- readable names for tiles, for the HUD's tooltips, the
+// floor prompt and the inventory's equipment slots.
 //
 // WebTiles sends tile indexes, not names, for map features and floor items.
 // The generated tileinfo modules map tile names to indexes, so we invert
@@ -133,5 +133,16 @@ function(dngn, main) {
 		return { name: words(m[2]) || kind, kind: kind };
 	}
 
-	return { feature: feature, item: item };
+	// An inventory item's own tile (player.inv[i].tile[0]).
+	// -> { key: "ARM_SCALE_MAIL", kind: "armour" }, or null
+	function inv_tile(idx)
+	{
+		if (!idx) return null;
+		const key = lookup(main, idx);
+		if (!key) return null;
+		const m = /^([A-Z]+)_/.exec(key);
+		return { key: key, kind: (m && KINDS[m[1]]) || null };
+	}
+
+	return { feature: feature, item: item, inv_tile: inv_tile };
 });

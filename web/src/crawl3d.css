@@ -445,6 +445,202 @@ body.crawl3d-hud #message_pane {
 #hud_spells .hud-close { display: inline; padding: 0 2px; }
 #hud_spells .hud-card { flex-basis: 270px; }
 
+/* Inventory: the engine's inventory menu redrawn as a character sheet
+   (#hud_inv, inventory.js), with a paper doll of equipment slots */
+body.crawl3d-hud .ui-popup.crawl3d-inv .ui-popup-outer,
+body.crawl3d-hud .ui-popup.crawl3d-desc .ui-popup-outer {
+    background: rgba(14, 12, 10, 0.97);
+    border: 1px solid var(--hud-border);
+    border-radius: 12px;
+    outline: none;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+}
+body.crawl3d-hud .ui-popup.crawl3d-inv .ui-popup-outer {
+    width: min(900px, calc(100vw - 32px));
+    max-width: none;
+    padding: 12px 16px 10px;
+}
+body.crawl3d-hud .ui-popup.crawl3d-inv .ui-popup-inner { display: block; width: 100%; }
+body.crawl3d-hud .ui-popup.crawl3d-inv .menu_inventory > :not(#hud_inv) { display: none; }
+#hud_inv { color: var(--hud-text); font-family: var(--hud-sans); }
+#hud_inv button { margin: 0; font-family: var(--hud-sans); }
+#hud_inv .hud-head { align-items: center; margin-bottom: 10px; }
+#hud_inv .hud-title { font-size: 18px; letter-spacing: 0.04em; }
+.hud-inv-meta { display: flex; gap: 14px; margin-left: auto; font-size: 12px; }
+.hud-inv-gold { color: #f2cf6b; }
+#hud_inv .hud-close { display: inline; padding: 0 2px; }
+.hud-inv-body {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+}
+.hud-inv-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px 12px;
+    border: 1px solid #3b3227;
+    border-radius: 10px;
+    background: radial-gradient(ellipse at 50% 40%, #2a2218 0%, #15110d 75%);
+}
+.hud-inv-doll {
+    display: grid;
+    grid-template-columns: repeat(3, 64px);
+    grid-template-rows: repeat(4, 64px);
+    grid-template-areas:
+        "cloak  head  amulet"
+        "weapon body  offhand"
+        "hands  .     ring1"
+        ".      feet  ring2";
+    gap: 24px 22px;
+    padding-bottom: 14px;
+    /* a figure behind the middle column */
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 300'><g fill='%23d9b36c' fill-opacity='0.09'><circle cx='50' cy='38' r='22'/><path d='M22 70 h56 l16 70 -14 4 -10 -40 v76 l8 100 h-20 l-8 -96 -8 96 h-20 l8 -100 v-76 l-10 40 -14 -4z'/></g></svg>") center 8px / 92px 290px no-repeat;
+}
+.hud-inv-extra { display: flex; flex-wrap: wrap; justify-content: center; gap: 22px 14px; padding-bottom: 14px; }
+.hud-inv-slot {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 35%, #2b241b, #16120e);
+    border: 1px solid #4d4232;
+    border-radius: 10px;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.7);
+    cursor: pointer;
+}
+.hud-inv-slot.filled {
+    border-color: #b8924a;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.6), 0 0 10px rgba(255, 215, 122, 0.18);
+}
+.hud-inv-slot:hover, .hud-inv-slot:focus { border-color: var(--hud-gold); background: #2c241a; }
+.hud-inv-slot canvas, .hud-inv-item canvas { width: 48px; height: 48px; image-rendering: pixelated; }
+.hud-inv-slot canvas.ghost { opacity: 0.16; filter: grayscale(1); }
+.hud-inv-label {
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    color: var(--hud-dim);
+    font-size: 10px;
+    letter-spacing: 0.03em;
+}
+.hud-inv-slot.filled .hud-inv-label { color: #d8c79f; }
+.hud-inv-slot > .hud-key,
+.hud-inv-item > .hud-key { position: absolute; top: -7px; left: -6px; font-size: 10px; padding: 0 4px; min-width: 0; }
+.hud-inv-plus {
+    position: absolute;
+    right: 4px;
+    bottom: 2px;
+    font: 600 11px var(--hud-mono);
+    color: #9fe08f;
+    text-shadow: 0 1px 2px #000;
+}
+.hud-inv-defs { display: flex; gap: 6px; }
+.hud-inv-defs .hud-chip b { font-weight: 600; }
+.hud-inv-bag {
+    max-height: min(62vh, 560px);
+    overflow-y: auto;
+    padding: 2px 4px 4px;
+}
+.hud-inv-group + .hud-inv-group { margin-top: 12px; }
+.hud-inv-group-name {
+    margin-bottom: 8px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid #3b3227;
+    color: var(--hud-gold);
+    font: 12px var(--hud-serif);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.hud-inv-tiles { display: flex; flex-wrap: wrap; gap: 10px; padding: 4px 0 0 4px; }
+.hud-inv-item {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1c1813;
+    border: 1px solid #4d4232;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.hud-inv-item:hover, .hud-inv-item:focus { border-color: var(--hud-gold); background: #262017; }
+.hud-inv-item.off { opacity: 0.45; }
+.hud-inv-item.fits { border-color: #7fd18b; box-shadow: 0 0 10px rgba(127, 209, 139, 0.45); }
+.hud-inv-item > .hud-count {
+    position: absolute;
+    right: 3px;
+    bottom: 1px;
+    font: 600 11px var(--hud-mono);
+    color: #f0d9a4;
+    text-shadow: 0 1px 2px #000;
+}
+.hud-inv-info {
+    min-height: 22px;
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid #3b3227;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.hud-inv-info .hud-key { margin-right: 4px; }
+.hud-inv-ann { margin-left: 8px; padding: 0 6px; border-radius: 8px; background: #3a2f1c; color: #f2cf6b; font-size: 11px; }
+@media (max-width: 720px) {
+    .hud-inv-body { grid-template-columns: minmax(0, 1fr); }
+    .hud-inv-bag { max-height: 36vh; }
+}
+
+/* Item description: its actions as buttons */
+body.crawl3d-hud .ui-popup.crawl3d-desc .describe-item > .header > canvas {
+    padding: 4px;
+    background: radial-gradient(circle at 50% 35%, #2b241b, #16120e);
+    border: 1px solid #b8924a;
+    border-radius: 10px;
+    image-rendering: pixelated;
+}
+body.crawl3d-hud .ui-popup.crawl3d-desc .describe-item > .header > span { font: 16px var(--hud-serif); color: var(--hud-gold); }
+body.crawl3d-hud .describe-item > .actions.hud-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #3b3227;
+}
+body.crawl3d-hud .describe-item > .actions > .hud-act {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px 6px 7px;
+    background: #1c1813;
+    border: 1px solid #5a4e3c;
+    border-radius: 8px;
+    color: var(--hud-text);
+    font: 13px var(--hud-sans);
+    cursor: pointer;
+    user-select: none;
+}
+body.crawl3d-hud .describe-item > .actions > .hud-act:hover { background: #2c241a; border-color: var(--hud-gold); }
+body.crawl3d-hud .describe-item > .actions > .hud-act.primary {
+    background: linear-gradient(#e2bf78, #b8924a);
+    border-color: #f0d9a4;
+    color: #1a140c;
+    font-weight: 600;
+}
+body.crawl3d-hud .describe-item > .actions > .hud-act.primary:hover { background: linear-gradient(#f0d08a, #c9a35a); }
+body.crawl3d-hud .describe-item > .actions > .hud-act.primary .hud-key { background: #f6e7c4; border-color: #8a6a32; color: #1a140c; }
+
 /* Aiming banner */
 #hud_aim {
     display: none;

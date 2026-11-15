@@ -16,7 +16,9 @@
 // (target_cursor) and draws a reticle at it; a click fires (click_cell).
 //
 // It sees messages by wrapping comm.handle_message, so no stock file
-// changes.
+// changes. The wrapper also re-broadcasts every message as a
+// "crawl3d_comm" event (msg, items) for the other HUD modules
+// (inventory.js).
 define(["jquery", "comm", "./player",
 	"./cell_renderer", "./enums", "./util"],
 function($, comm, player, cr, enums, util) {
@@ -131,9 +133,10 @@ function($, comm, player, cr, enums, util) {
 		const tapped = function(msg) {
 			// the stock menu code rewrites msg.items: keep what we read first
 			const items = Array.isArray(msg.items) ? msg.items.map(i => ({ text: i.text,
-				hotkeys: i.hotkeys, colour: i.colour, tiles: i.tiles })) : null;
+				hotkeys: i.hotkeys, colour: i.colour, tiles: i.tiles, level: i.level })) : null;
 			const r = orig.apply(this, arguments);
 			try { observe(msg, items); } catch (e) { console.warn("actions:", e); }
+			try { $(document).trigger("crawl3d_comm", [msg, items]); } catch (e) { console.warn("crawl3d_comm:", e); }
 			return r;
 		};
 		tapped.crawl3d_tap = true;
@@ -564,6 +567,7 @@ function($, comm, player, cr, enums, util) {
 		slot: slot,
 		badge: badge,
 		has_fire: has_fire,
+		tile_canvas: tile_canvas,
 		is_targeting: function() { return targeting; },
 		picker_open: function() { return picker; }
 	};
