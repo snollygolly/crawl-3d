@@ -71,6 +71,16 @@
 #hud_root { display: none; }
 body.crawl3d-hud #hud_root { display: block; }
 
+/* Crawl's menus and popups live in #ui-stack. Stock CSS gives it z-index
+   3000 but no position, so the z-index does nothing and the popups (fixed,
+   z auto) end up under the 3D view: a menu opens, unseen, and swallows keys.
+   Positioning it makes the 3000 count. */
+#ui-stack { position: relative; z-index: 3000; }
+
+/* Spectator/chat bar: meaningless in a single-player browser game */
+body.crawl3d-hud #chat,
+body.crawl3d-hud #chat_hidden { display: none !important; }
+
 /* The stock sidebar keeps running (the client writes into it), just unseen. */
 body.crawl3d-hud #right_column { visibility: hidden; }
 
@@ -322,14 +332,53 @@ body.crawl3d-hud #message_pane {
 #hud_coach button { flex: 0 0 auto; padding: 2px 8px; background: transparent; border-color: transparent; color: var(--hud-dim); }
 #hud_coach button:hover { color: var(--hud-text); }
 
-/* Narrower windows: the hotbar gets the bottom row to itself */
-@media (max-width: 1500px) {
-    body.crawl3d-hud #message_pane,
-    body.crawl3d-hud #three_toolbar.hud { bottom: 104px; }
+/* 6: floor-context prompt, beside the player's feet (three_view places it) */
+#hud_root #hud_floor {
+    display: none;
+    padding: 6px 10px;
+    font-size: 13px;
+    white-space: nowrap;
+    z-index: 65;
 }
-@media (max-width: 1100px) {
-    #hud_root #hud_coach { display: none; }
+#hud_root #hud_floor.docked {
+    left: 50% !important;
+    top: auto !important;
+    bottom: 104px;
+    transform: translateX(-50%);
 }
+.hud-floor-row { display: flex; gap: 8px; align-items: center; }
+.hud-floor-row + .hud-floor-row { margin-top: 4px; }
+.hud-floor-row .what { color: var(--hud-gold); }
+.hud-floor-row button.hud-key { cursor: pointer; }
+.hud-floor-row button.hud-key:hover { border-color: var(--hud-gold); }
+
+/* 7: hover tooltip, with a leader line to the pointer */
+#hud_root #hud_tip {
+    display: none;
+    width: max-content;
+    max-width: 260px;
+    padding: 9px 12px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 80;
+    --lead-x: 40px;
+}
+#hud_tip::after {
+    content: "";
+    position: absolute;
+    left: var(--lead-x);
+    top: 100%;
+    width: 2px;
+    height: 26px;
+    background: rgba(217, 179, 108, 0.6);
+}
+#hud_tip.below::after { top: auto; bottom: 100%; }
+.hud-tip-title { font: 14px var(--hud-serif); color: var(--hud-gold); }
+.hud-tip-sub { margin-top: 2px; }
+.hud-tip-hint { margin-top: 5px; color: var(--hud-text); }
+.hud-tip-mouse { margin-top: 6px; color: #cfc6b2; line-height: 1.5; }
+.hud-tip-mouse b { color: var(--hud-text); font-weight: 600; }
+
 
 /* 8: message log -- the stock pane, moved into a panel */
 #hud_log_head { display: none; }
@@ -438,3 +487,13 @@ body.crawl3d-hud #action-panel-placeholder {
 #crawl3d_start .status { margin-top: 14px; min-height: 1.5em; color: #c9b88f; }
 #crawl3d_start ul { padding-left: 18px; color: #a89a80; font-size: 13px; }
 #crawl3d_start .fine { font-size: 12px; color: #7d7262; margin-top: 14px; }
+
+/* Last, so they override the panel rules above */
+/* Narrower windows: the hotbar gets the bottom row to itself */
+@media (max-width: 1720px) {
+    body.crawl3d-hud #message_pane,
+    body.crawl3d-hud #three_toolbar.hud { bottom: 104px; }
+}
+@media (max-width: 1100px) {
+    #hud_root #hud_coach { display: none; }
+}

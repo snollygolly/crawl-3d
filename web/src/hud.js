@@ -10,11 +10,16 @@
 // map_knowledge; three_view calls refresh() once per frame after map changes.
 // Hotbar slots and minimap buttons just send the game's own keys.
 //
+// World-anchored bits (the floor prompt and hover tooltips) are positioned by
+// three_view, which knows the camera: it calls place_floor() every frame and
+// tooltip() on hover. Names come from tile_names.js; what's lying on the
+// floor comes from the "You see here ..." messages.
+//
 // The stock message pane is not replaced: in HUD mode crawl3d.css moves it
 // into a panel, so --more--, prompts and text input keep working unchanged.
 define(["jquery", "comm", "./player", "./map_knowledge",
-	"./options", "./util", "./enums"],
-function($, comm, player, map_knowledge, options, util, enums) {
+	"./options", "./util", "./enums", "./tile_names"],
+function($, comm, player, map_knowledge, options, util, enums, names) {
 	"use strict";
 
 	// player.place is the branch's short name; show the long one, in the
@@ -149,6 +154,8 @@ function($, comm, player, map_knowledge, options, util, enums) {
     </div>
   </div>
   <div class="hud-panel" id="hud_bar"></div>
+  <div class="hud-panel" id="hud_floor"></div>
+  <div class="hud-panel" id="hud_tip"><div class="hud-tip-title"></div><div class="hud-tip-sub dim"></div><div class="hud-tip-hint"></div><div class="hud-tip-mouse"></div></div>
 </div>`;
 
 	let root = null;
@@ -160,6 +167,8 @@ function($, comm, player, map_knowledge, options, util, enums) {
 	let map_xf = null;
 	let coach_timer = null;
 	let hostiles = 0;
+	// what's on the player's square: { feature, items, items_at, pos }
+	let floor = { feature: null, items: null, items_at: 0, pos: null };
 
 	// opts.can_act(): false while a menu or prompt has the keyboard.
 	// opts.icon_for(mon_id): the monster's sprite canvas, if three_view has one.
@@ -176,6 +185,12 @@ function($, comm, player, map_knowledge, options, util, enums) {
 		last_place = null;
 		last = { hp: null, mp: null };
 		$(document).on("crawl3d_player.hud", render);
+		$(document).on("crawl3d_message.hud", function(ev, data) { floor_message(data); });
+		$("#hud_floor").on("click", "button", function() {
+			send_key($(this).data("key"));
+			this.blur();
+		});
+		floor = { feature: null, items: null, items_at: 0, pos: null };
 		if (portrait) set_portrait(portrait);
 		render();
 	}
@@ -282,6 +297,7 @@ function($, comm, player, map_knowledge, options, util, enums) {
 		draw_map();
 		render_monsters();
 		render_hotbar();
+		render_floor();
 	}
 
 	function render_card()
@@ -653,9 +669,153 @@ function($, comm, player, map_knowledge, options, util, enums) {
 		});
 	}
 
+	// ------------------------------------------------------------------
+	// 6: floor-context prompt
+
+	const SEE_HERE = /^You see here (.+?)\.?$/;
+	const SEVERAL = /^(There are (several|many|\d+) (items|objects) here|Things that are here:)/;
+	const GONE = /^(There is nothing here|You pick up |[a-zA-Z$] - )/;
+
+	function floor_message(data)
+	{
+		const text = plain(data && data.text).trim();
+		let m;
+		if ((m = SEE_HERE.exec(text)))
+			set_items(m[1]);
+		else if (SEVERAL.test(text))
+			set_items("a pile of items");
+		else if (GONE.test(text))
+			set_items(null);
+	}
+
+	function set_items(text)
+	{
+		floor.items = text;
+		floor.items_at = performance.now();
+		if (active) render_floor();
+	}
+
+	function render_floor()
+	{
+		const pos = `${player.pos.x},${player.pos.y}`;
+		if (pos !== floor.pos)
+		{
+			// We moved. An item message from this same update belongs to the
+			// new square; an older one belongs to the square we left.
+			if (performance.now() - floor.items_at > 300) floor.items = null;
+			floor.pos = pos;
+		}
+		const cell = map_knowledge.get(player.pos.x, player.pos.y);
+		const bg = cell && cell.t ? enums.prepare_bg_flags(cell.t.bg || 0).value : 0;
+		const f = names.feature(bg);
+		floor.feature = f && f.key ? f : null;
+
+		const box = $("#hud_floor").empty();
+		const row = function(what, key, verb) {
+			const r = $("<div class='hud-floor-row'>").append($("<span class='what'>").text(what));
+			if (key)
+				r.append($("<button class='hud-key'>").text(key).data("key", key)
+					.attr("title", `${verb} (${key})`), $("<span class='dim'>").text(verb));
+			box.append(r);
+		};
+		if (floor.feature) row(cap(floor.feature.name), floor.feature.key, floor.feature.verb);
+		if (floor.items) row(`${cap(floor.items)} on the floor`, "g", "pick up");
+		box.toggleClass("has", !!(floor.feature || floor.items));
+	}
+
+	function floor_active()
+	{
+		return !!(active && (floor.feature || floor.items));
+	}
+
+	// (x, y): the player's feet in CSS pixels. docked: the feet are off
+	// screen (first person), so sit above the hotbar instead.
+	function place_floor(x, y, docked)
+	{
+		const box = $("#hud_floor");
+		if (!floor_active())
+		{
+			box.hide();
+			return;
+		}
+		box.show().toggleClass("docked", !!docked);
+		if (!docked) box.css({ left: Math.round(x + 40), top: Math.round(y + 10) });
+		else box.css({ left: "", top: "" });
+	}
+
+	// ------------------------------------------------------------------
+	// 7: hover tooltips
+
+	function cap(s)
+	{
+		return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+	}
+
+	// hit: { x, y, wall } from three_view's raycast, or null to hide.
+	// (sx, sy): the mouse in CSS pixels.
+	function tooltip(hit, sx, sy)
+	{
+		const tip = $("#hud_tip");
+		const info = hit && active ? describe(hit) : null;
+		if (!info)
+		{
+			tip.hide();
+			return;
+		}
+		tip.find(".hud-tip-title").text(info.title);
+		tip.find(".hud-tip-sub").text(info.sub || "").toggle(!!info.sub);
+		tip.find(".hud-tip-hint").text(info.hint || "").toggle(!!info.hint);
+		tip.find(".hud-tip-mouse").html(info.mouse.join("<br>"));
+		tip.show();
+		// above the pointer with a leader line down to it, kept on screen
+		const w = tip.outerWidth(); const h = tip.outerHeight();
+		const left = Math.max(8, Math.min(window.innerWidth - w - 8, sx - 40));
+		let top = sy - h - 26;
+		tip.toggleClass("below", top < 8);
+		if (top < 8) top = sy + 26;
+		tip.css({ left: left, top: top });
+		tip[0].style.setProperty("--lead-x", `${Math.round(sx - left)}px`);
+	}
+
+	function describe(hit)
+	{
+		const cell = map_knowledge.get(hit.x, hit.y);
+		if (!cell || !cell.t) return null;
+		if (hit.x === player.pos.x && hit.y === player.pos.y) return null;
+		const vis = map_knowledge.visible(cell);
+		const remembered = vis ? null : "remembered, not in view";
+		const L = "<b>Left-click</b>: "; const R = "<b>Right-click</b>: describe";
+
+		if (cell.mon && vis)
+		{
+			const m = cell.mon;
+			const att = m.att ? ATTITUDE[m.att] || "neutral" : `${THREAT[m.threat] || "unknown"} threat`;
+			return { title: cap(m.name), sub: [att, mon_state(cell)].filter(Boolean).join(" · "),
+				hint: m.att ? null : "Tab attacks the nearest monster.",
+				mouse: [`${L}${m.att ? "walk there" : "attack / move toward"}`, R] };
+		}
+
+		const bg = enums.prepare_bg_flags(cell.t.bg || 0).value;
+		const f = names.feature(bg);
+		const fg = enums.prepare_fg_flags(cell.t.fg || 0).value;
+		const it = cell.mon ? null : names.item(fg);
+		if (!f && !it) return null;
+		const sub = [];
+		if (f && it) sub.push(`${it.name} (${it.kind}) here`);
+		else if (it && it.kind !== "item") sub.push(it.kind);
+		if (remembered) sub.push(remembered);
+		let hint = f ? f.hint : null;
+		if (it && !hint) hint = "Walk here and press g to pick it up.";
+		return { title: cap(f ? f.name : it.name), sub: sub.join(" · "), hint: hint,
+			mouse: [`${L}travel here`, R] };
+	}
+
 	return {
 		init: init,
 		refresh: refresh,
+		place_floor: place_floor,
+		floor_active: floor_active,
+		tooltip: tooltip,
 		cleanup: cleanup,
 		set_active: set_active,
 		set_portrait: set_portrait,

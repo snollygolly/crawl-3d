@@ -64,6 +64,7 @@ function ($, comm, client, textinput, util, options) {
         // crawl3d: the 3D HUD shows a turn gutter and colours by channel
         if (data.turn !== undefined) msg_elem.attr("data-turn", data.turn);
         if (data.channel !== undefined) msg_elem.attr("data-channel", data.channel);
+        $(document).trigger("crawl3d_message", [data]);
         var prefix_glyph = $("<span></span>");
         prefix_glyph.addClass("prefix_glyph");
         prefix_glyph.html("&nbsp;");

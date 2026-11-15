@@ -209,6 +209,9 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		s.player_target = null;
 		s.hover = make_hover_marker();
 		s.scene.add(s.hover);
+		s.floor_ring = make_floor_ring();
+		s.scene.add(s.floor_ring);
+		s.feet = new THREE.Vector3();
 		s.raycaster = new THREE.Raycaster();
 		s.last_time = performance.now();
 
@@ -280,6 +283,24 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		m.position.y = 0.02;
 		m.visible = false;
 		return m;
+	}
+
+	// Glowing ring under the player when their square holds stairs, an
+	// altar, items... (the HUD's floor prompt says what).
+	function make_floor_ring()
+	{
+		const g = new THREE.Group();
+		const ring = new THREE.RingGeometry(0.4, 0.5, 40);
+		ring.rotateX(-Math.PI / 2);
+		const glow = new THREE.RingGeometry(0.3, 0.62, 40);
+		glow.rotateX(-Math.PI / 2);
+		g.add(new THREE.Mesh(ring, new THREE.MeshBasicMaterial({
+			color: 0xffd77a, transparent: true, opacity: 0.9, depthWrite: false })));
+		g.add(new THREE.Mesh(glow, new THREE.MeshBasicMaterial({
+			color: 0xffd77a, transparent: true, opacity: 0.25, depthWrite: false })));
+		g.position.y = 0.025;
+		g.visible = false;
+		return g;
 	}
 
 	// ------------------------------------------------------------------
@@ -717,7 +738,38 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		s.ghost.uGhostOn.value = settings.mode === "first" ? 0.0 : 1.0;
 		s.torch.intensity = 5 + Math.sin(now / 130) * 0.25 + Math.sin(now / 57) * 0.15;
 
+		// Floor prompt: ring under the player, panel beside their feet
+		const floor = hud.floor_active();
+		s.floor_ring.visible = floor && settings.mode !== "first";
+		if (floor)
+		{
+			s.floor_ring.position.set(pp.x, 0.025, pp.z);
+			s.floor_ring.children[1].material.opacity = 0.18 + 0.12 * Math.sin(now / 260);
+			const p = to_screen(pp.x, pp.z);
+			hud.place_floor(p.x, p.y, settings.mode === "first" || !p.on);
+		}
+		else
+			hud.place_floor(0, 0, true);
+
 		s.renderer.render(s.scene, cam);
+	}
+
+	// World floor point -> canvas CSS pixels; on: in front of the camera and
+	// inside the view.
+	function to_screen(wx, wz)
+	{
+		const s = state;
+		const v = s.feet.set(wx, 0, wz).project(s.camera);
+		return { x: (v.x + 1) / 2 * s.w, y: (1 - v.y) / 2 * s.h,
+			on: v.z <= 1 && Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1 };
+	}
+
+	// The centre of map cell (x, y) on screen, or null (for specs and tools).
+	function project(x, y)
+	{
+		if (!state || !state.w) return null;
+		const p = to_screen(x + 0.5, y + 0.5);
+		return p.on ? { x: p.x, y: p.y } : null;
 	}
 
 	function angle_diff(a, b)
@@ -817,6 +869,8 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 						settings.pitch = Math.max(0.25, Math.min(1.45,
 							drag.pitch + dy * 0.006));
 					s.cam_yaw = settings.yaw;
+					hud.tooltip(null);
+					return;
 				}
 			}
 			hover_at(ev);
@@ -827,7 +881,8 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 			drag = null;
 			if (d.moved <= 6)
 			{
-				const c = cell_at(ev);
+				const r = el.getBoundingClientRect();
+				const c = pick_target(ev.clientX - r.left, ev.clientY - r.top);
 				if (c)
 					comm.send_message("click_cell", { x: c.x, y: c.y,
 						button: d.button === 2 ? 3 : 1 });
@@ -844,19 +899,16 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 			settings.dist = Math.max(2.5, Math.min(16, settings.dist * (ev.deltaY > 0 ? 1.1 : 0.9)));
 			save_settings();
 		}, { passive: false });
-		$(el).on("mouseleave", function() { s.hover.visible = false; });
+		$(el).on("mouseleave", function() {
+			s.hover.visible = false;
+			hud.tooltip(null);
+		});
 	}
 
-	function cell_at(ev)
-	{
-		const r = state.renderer.domElement.getBoundingClientRect();
-		return pick(ev.clientX - r.left, ev.clientY - r.top);
-	}
-
-	// The walkable cell under canvas point (px, py) in CSS pixels, or null.
-	// Solid walls block the ray and give no target; ghosted walls let it
-	// through to the floor behind them.
-	function pick(px, py)
+	// What the ray through canvas point (px, py) in CSS pixels hits first:
+	// { x, y, wall } or null. Solid walls stop the ray; ghosted walls let it
+	// through to whatever is behind them.
+	function raycast(px, py)
 	{
 		const s = state;
 		if (!s || !s.w || !s.h) return null;
@@ -876,21 +928,39 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 			if (hit.object === s.walls)
 			{
 				if (wall_ghosted(x, y)) continue;
-				return null;
+				return { x: x, y: y, wall: true };
 			}
 			if (!is_known(cell) || cell.__wall3d) return null;
-			return { x: x, y: y };
+			return { x: x, y: y, wall: false };
 		}
 		return null;
 	}
 
+	// The walkable cell under canvas point (px, py), or null.
+	function pick(px, py)
+	{
+		const h = raycast(px, py);
+		return h && !h.wall ? { x: h.x, y: h.y } : null;
+	}
+
+	// Like pick(), but closed doors count too: clicking one travels to it.
+	function pick_target(px, py)
+	{
+		const h = raycast(px, py);
+		if (!h) return null;
+		if (h.wall && !box_tiles.has(bg_value(map_knowledge.get(h.x, h.y)))) return null;
+		return { x: h.x, y: h.y };
+	}
+
 	function hover_at(ev)
 	{
-		const c = cell_at(ev);
+		const r = state.renderer.domElement.getBoundingClientRect();
+		const h = raycast(ev.clientX - r.left, ev.clientY - r.top);
 		const m = state.hover;
-		if (!c) { m.visible = false; return; }
-		m.visible = true;
-		m.position.set(c.x + 0.5, 0.02, c.y + 0.5);
+		const c = h && !h.wall ? h : null;
+		m.visible = !!c;
+		if (c) m.position.set(c.x + 0.5, 0.02, c.y + 0.5);
+		hud.tooltip(game_has_focus() ? h : null, ev.clientX, ev.clientY);
 	}
 
 	// ------------------------------------------------------------------
@@ -975,6 +1045,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		clear: clear,
 		settings: settings,
 		pick: pick,
+		project: project,
 		is_active: function() { return !!state; }
 	};
 });

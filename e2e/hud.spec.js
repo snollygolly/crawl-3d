@@ -33,6 +33,39 @@ test.describe("the 3D HUD", () => {
 		});
 		expect(drawn).toBeGreaterThan(100);
 
+		// A new game starts on D:1's way out, so the floor prompt offers "<".
+		await expect(page.locator("#hud_floor")).toBeVisible();
+		await expect(page.locator("#hud_floor button.hud-key")).toHaveText("<");
+		const start = await page.evaluate(() => {
+			const p = requirejs("game-local/player").pos;
+			return { x: p.x, y: p.y };
+		});
+
+		// Step off it (south is open floor on this seed): the prompt goes.
+		await page.keyboard.press("j");
+		await page.waitForFunction(([x, y]) => {
+			const p = requirejs("game-local/player").pos;
+			return p.x !== x || p.y !== y;
+		}, [start.x, start.y], { timeout: 15000 });
+		await expect(page.locator("#hud_floor")).toBeHidden();
+
+		// Hovering the staircase we left shows a tooltip naming it.
+		await page.waitForTimeout(500);
+		const at = await page.evaluate(([x, y]) => requirejs("game-local/three_view").project(x, y),
+			[start.x, start.y]);
+		expect(at).not.toBeNull();
+		await page.mouse.move(at.x + 2, at.y + 2);
+		await page.mouse.move(at.x, at.y);
+		await expect(page.locator("#hud_tip")).toBeVisible();
+		await expect(page.locator("#hud_tip .hud-tip-title")).toHaveText(/up|way back/i);
+		await expect(page.locator("#hud_tip .hud-tip-mouse")).toContainText("Right-click");
+		await page.mouse.move(1, 1);
+		await expect(page.locator("#hud_tip")).toBeHidden();
+
+		// Back onto the stairs, so the walk later starts where it always has.
+		await page.keyboard.press("k");
+		await expect(page.locator("#hud_floor")).toBeVisible();
+
 		// The stock sidebar is hidden; its message pane is now a panel.
 		await expect(page.locator("#right_column")).toHaveCSS("visibility", "hidden");
 		await expect(page.locator("#message_pane")).toHaveCSS("position", "fixed");
@@ -98,6 +131,12 @@ test.describe("the 3D HUD", () => {
 		await expect(page.locator("#hud_slot_fight .hud-key")).toHaveText("Tab");
 		await page.locator("#hud_slot_inventory").click();
 		await waitInPage(page, () => !!document.querySelector("#ui-stack > *"), "the inventory", 15000);
+		// ...and the menu is drawn above the 3D view, not hidden under it.
+		await page.waitForTimeout(300);
+		expect(await page.evaluate(() => {
+			const top = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+			return !!(top && top.closest("#ui-stack"));
+		})).toBe(true);
 		await page.keyboard.press("Escape");
 		await waitInPage(page, () => !document.querySelector("#ui-stack > *"), "the inventory to close", 15000);
 
