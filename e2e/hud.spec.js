@@ -154,4 +154,24 @@ test.describe("the 3D HUD", () => {
 		await page.screenshot({ path: testInfo.outputPath("hud.png") });
 		expect(errors).toEqual([]);
 	});
+
+	// Corpses can't be picked up, so the floor prompt doesn't offer "g" for them.
+	test("offers pick up for items but not for corpses", async({ page }, testInfo) => {
+		await startGame(page, testInfo, "Corpse");
+		const say = text => page.evaluate(t => $(document).trigger("crawl3d_message", [{ text: t }]), text);
+		const keys = page.locator("#hud_floor button.hud-key");
+
+		// The game starts on the up stairs, so "<" is offered either way.
+		await say("You see here a dart slug corpse.");
+		await expect(page.locator("#hud_floor")).toContainText("A dart slug corpse on the floor");
+		await expect(keys).toHaveText(["<"]);
+
+		await say("You see here a rat skeleton.");
+		await expect(page.locator("#hud_floor")).toContainText("A rat skeleton on the floor");
+		await expect(keys).toHaveText(["<"]);
+
+		await say("You see here a +0 dagger.");
+		await expect(page.locator("#hud_floor")).toContainText("A +0 dagger on the floor");
+		await expect(keys).toHaveText(["<", "g"]);
+	});
 });

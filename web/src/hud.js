@@ -689,6 +689,8 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions) {
 	const SEE_HERE = /^You see here (.+?)\.?$/;
 	const SEVERAL = /^(There are (several|many|\d+) (items|objects) here|Things that are here:)/;
 	const GONE = /^(There is nothing here|You pick up |[a-zA-Z$] - )/;
+	// Corpses and skeletons can't be picked up, so they get no "g" prompt.
+	const REMAINS = /\b(corpses?|skeletons?)( \(.*\))?$/i;
 
 	function floor_message(data)
 	{
@@ -733,7 +735,11 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions) {
 			box.append(r);
 		};
 		if (floor.feature) row(cap(floor.feature.name), floor.feature.key, floor.feature.verb);
-		if (floor.items) row(`${cap(floor.items)} on the floor`, "g", "pick up");
+		if (floor.items)
+		{
+			if (REMAINS.test(floor.items)) row(`${cap(floor.items)} on the floor`);
+			else row(`${cap(floor.items)} on the floor`, "g", "pick up");
+		}
 		box.toggleClass("has", !!(floor.feature || floor.items));
 	}
 
@@ -822,7 +828,11 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions) {
 		else if (it && it.kind !== "item") sub.push(it.kind);
 		if (remembered) sub.push(remembered);
 		let hint = f ? f.hint : null;
-		if (it && !hint) hint = "Walk here and press g to pick it up.";
+		if (it && !hint)
+		{
+			hint = it.kind === "corpse" ? "Corpses can't be picked up."
+				: "Walk here and press g to pick it up.";
+		}
 		return { title: cap(f ? f.name : it.name), sub: sub.join(" · "), hint: hint,
 			mouse: [`${L}travel here`, R] };
 	}
