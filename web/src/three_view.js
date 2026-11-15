@@ -95,11 +95,11 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 	// ------------------------------------------------------------------
 	// Classification of background tiles
 
-	let box_tiles = null; let tall_tiles = null;
+	let box_tiles = null; let standing_tiles = null;
 	function build_tile_sets()
 	{
 		box_tiles = new Set();
-		tall_tiles = new Set();
+		standing_tiles = new Set();
 		function add_range(set, idx)
 		{
 			let n = 1;
@@ -112,9 +112,27 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 			if (typeof idx !== "number") continue;
 			if (/^DNGN_(CLOSED|RUNED|SEALED)(_CLEAR)?_DOOR/.test(key))
 				add_range(box_tiles, idx);
-			else if (/^DNGN_.*(TREE|MANGROVE|STATUE|IDOL)/.test(key))
-				add_range(tall_tiles, idx);
+			else if (/^DNGN_.*(TREE|MANGROVE|STATUE|IDOL)/.test(key)
+				|| STANDING_FEATURES.test(key))
+				add_range(standing_tiles, idx);
 		}
+	}
+
+	// Upright features besides statues and trees: drawn as billboards
+	// rather than painted into the floor. Stairs, traps, portals and
+	// gateways stay flat, since their tiles show holes or floor markings.
+	const STANDING_FEATURES = new RegExp("^DNGN_(.*FOUNTAIN|ALTAR_|UNKNOWN_ALTAR"
+		+ "|STONE_ARCH|CRUMBLED_COLUMN|.*GRAVESTONE|SKULL_PIKE|SARCOPHAGUS"
+		+ "|LECTERN|MYSTIC_CAGE|GILDED_RELIQUARY|ORB_DAIS|ENIGMATIC_DYNAMO"
+		+ "|NASCENCE_CIRCUIT|ENSIGN_|ZONGULDROK|SPIKE_LAUNCHER|(DARK_)?FLOWER_POT"
+		+ "|DISCO_BALL|DJEMBE|MOP|STACKED_BOOKS|BOTTLED_SPIRITS|CACHE_OF"
+		+ "|ABANDONED_SHOP|RUNELIGHT)");
+
+	// Whether a background tile stands up as a billboard in 3D.
+	function is_standing(idx)
+	{
+		if (!standing_tiles) build_tile_sets();
+		return standing_tiles.has(idx);
 	}
 
 	function bg_value(cell)
@@ -339,9 +357,9 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 			t.flv = t.flv || {};
 			t.flv.f = t.flv.f || 0;
 			t.flv.s = t.flv.s || 0;
-			// Statues, trees... stand as billboards, so the floor gets
+			// Statues, trees, fountains... stand as billboards, so the floor gets
 			// only what's under them.
-			const bt = tall_tiles.has(v) ? floor_bg_for(t) : t;
+			const bt = standing_tiles.has(v) ? floor_bg_for(t) : t;
 			try { b.draw_background(0, 0, bt); } catch (e) {}
 			ctx.drawImage(b.canvas, px, py);
 			if (!map_knowledge.visible(cell))
@@ -354,7 +372,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		s.atlas_dirty = true;
 	}
 
-	// A copy of a tall feature's tile data with the feature replaced by
+	// A copy of a standing feature's tile data with the feature replaced by
 	// the floor beneath it: the floor flavour tile, or water for mangroves.
 	function floor_bg_for(t)
 	{
@@ -506,7 +524,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		const cloud = t.cloud && t.cloud.value !== undefined ? t.cloud.value : (t.cloud || 0);
 		const ov = (t.ov || []).filter(function(o) {
 			return o >= dngn.FEAT_MAX; });
-		const tall = tall_tiles.has(bg_value(cell)) ? bg_value(cell) : 0;
+		const tall = standing_tiles.has(bg_value(cell)) ? bg_value(cell) : 0;
 		if (!fg && !cloud && !ov.length && !t.doll && !t.mcache && !tall)
 			return null;
 		return JSON.stringify([fg, cloud, ov, t.doll || 0, t.mcache || 0,
@@ -527,7 +545,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		}
 		const d = s.fg_drawer;
 		d.ctx.clearRect(0, 0, d.canvas.width, d.canvas.height);
-		const tall = tall_tiles.has(bg_value(cell));
+		const tall = standing_tiles.has(bg_value(cell));
 		try
 		{
 			if (tall)
@@ -621,7 +639,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 				}
 				// Lone items sit smaller on the floor; creatures stand tall
 				const small = !cell.mon && key !== "player" && !cell.t.doll
-                            && !cell.t.mcache && !tall_tiles.has(bg_value(cell));
+                            && !cell.t.mcache && !standing_tiles.has(bg_value(cell));
 				e.sprite.scale.set(small ? 0.9 : 1.5, small ? 1.2 : 2.0, 1);
 				const vis = map_knowledge.visible(cell);
 				e.sprite.material.color.setScalar(vis ? 1.0 : 0.45);
@@ -1062,6 +1080,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		pick: pick,
 		project: project,
 		floor_bg_for: floor_bg_for,
+		is_standing: is_standing,
 		is_active: function() { return !!state; }
 	};
 });
