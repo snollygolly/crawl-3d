@@ -10,8 +10,8 @@
 // Monster sprites are tracked by monster id and glide between cells, which
 // hides the turn-based steps.
 define(["jquery", "comm", "./map_knowledge", "./cell_renderer", "./player",
-	"./tileinfo-dngn", "./enums", "./hud", "./dungeon_renderer"],
-function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer) {
+	"./tileinfo-dngn", "./enums", "./hud", "./dungeon_renderer", "./view_data"],
+function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer, view_data) {
 	"use strict";
 
 	let THREE = null;
@@ -229,6 +229,9 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		s.scene.add(s.hover);
 		s.floor_ring = make_floor_ring();
 		s.scene.add(s.floor_ring);
+		s.aim = make_aim_marker();
+		s.scene.add(s.aim);
+		s.aim_sent = null;
 		s.feet = new THREE.Vector3();
 		s.raycaster = new THREE.Raycaster();
 		s.last_time = performance.now();
@@ -303,6 +306,37 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		return m;
 	}
 
+	// Reticle on the engine's aim while targeting: a ring with four ticks.
+	function make_aim_marker()
+	{
+		const g = new THREE.Group();
+		const mat = new THREE.MeshBasicMaterial({
+			color: 0xff5a3c, transparent: true, opacity: 0.95, depthWrite: false });
+		const ring = new THREE.RingGeometry(0.34, 0.42, 40);
+		ring.rotateX(-Math.PI / 2);
+		g.add(new THREE.Mesh(ring, mat));
+		for (let i = 0; i < 4; i++)
+		{
+			const tick = new THREE.PlaneGeometry(0.06, 0.16);
+			tick.rotateX(-Math.PI / 2);
+			tick.translate(0, 0, -0.5);
+			tick.rotateY(i * Math.PI / 2);
+			g.add(new THREE.Mesh(tick, mat));
+		}
+		g.position.y = 0.03;
+		g.visible = false;
+		return g;
+	}
+
+	// Where the engine is aiming, or null: the mouse cursor it placed from our
+	// target_cursor messages, else its own map cursor.
+	function aim_loc()
+	{
+		if (!window.game || !window.game.can_target || !window.game.can_target()) return null;
+		const locs = view_data.cursor_locs || [];
+		return locs[enums.CURSOR_MOUSE] || locs[enums.CURSOR_MAP] || null;
+	}
+
 	// Glowing ring under the player when their square holds stairs, an
 	// altar, items... (the HUD's floor prompt says what).
 	function make_floor_ring()
@@ -366,6 +400,12 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 			{
 				// remembered but out of sight
 				ctx.fillStyle = "rgba(10, 8, 30, 0.55)";
+				ctx.fillRect(px, py, TS, TS);
+			}
+			else if (enums.prepare_bg_flags(t.bg || 0).OOR)
+			{
+				// out of range of what's being aimed
+				ctx.fillStyle = "rgba(30, 0, 0, 0.45)";
 				ctx.fillRect(px, py, TS, TS);
 			}
 		}
@@ -784,6 +824,21 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		else
 			hud.place_floor(0, 0, true);
 
+		// Aim reticle
+		const aim = aim_loc();
+		s.aim.visible = !!aim;
+		if (aim)
+		{
+			s.aim.position.set(aim.x + 0.5, 0.03, aim.y + 0.5);
+			const oor = enums.prepare_bg_flags((map_knowledge.get(aim.x, aim.y).t || {}).bg || 0).OOR;
+			s.aim.children[0].material.color.setHex(oor ? 0x8a8a8a : 0xff5a3c);
+			const k = 1 + 0.08 * Math.sin(now / 160);
+			s.aim.scale.set(k, 1, k);
+			s.aim.rotation.y = now / 1400;
+		}
+		else
+			s.aim_sent = null;
+
 		s.renderer.render(s.scene, cam);
 	}
 
@@ -993,6 +1048,17 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		const c = h && !h.wall ? h : null;
 		m.visible = !!c;
 		if (c) m.position.set(c.x + 0.5, 0.02, c.y + 0.5);
+		// While the engine is aiming, the mouse moves its aim (as in 2D).
+		const g = window.game;
+		if (c && g && g.can_target && g.can_target())
+		{
+			const sent = state.aim_sent;
+			if (!sent || sent.x !== c.x || sent.y !== c.y)
+			{
+				state.aim_sent = { x: c.x, y: c.y };
+				comm.send_message("target_cursor", state.aim_sent);
+			}
+		}
 		hud.tooltip(game_has_focus() ? h : null, ev.clientX, ev.clientY);
 	}
 
@@ -1081,6 +1147,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer)
 		project: project,
 		floor_bg_for: floor_bg_for,
 		is_standing: is_standing,
+		aim_loc: function() { return state && state.aim.visible ? aim_loc() : null; },
 		is_active: function() { return !!state; }
 	};
 });

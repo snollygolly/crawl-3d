@@ -30,13 +30,14 @@ async function waitInPage(page, fn, what, timeout = 120000) {
 }
 
 // Starts a Minotaur Fighter (war axe) on a fixed seed, so the map is the same every run, and
-// waits until the game and the 3D view are up.
-async function startGame(page, testInfo, name = "Smoke") {
+// waits until the game and the 3D view are up. keys: the species / background (/ weapon) picks,
+// e.g. ["j", "r"] for a Human Conjurer.
+async function startGame(page, testInfo, name = "Smoke", keys = ["b", "a", "c"]) {
 	await page.goto("/?seed=42");
 	await page.locator("#crawl3d_name").fill(name);
 	await press(page.locator("#crawl3d_play"), testInfo);
 	await waitInPage(page, () => !!document.querySelector("#ui-stack > *"), "the species menu");
-	for (const k of ["b", "a", "c"]) {
+	for (const k of keys) {
 		await page.keyboard.press(k);
 		await page.waitForTimeout(1200);
 	}

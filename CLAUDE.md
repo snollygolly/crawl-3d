@@ -10,6 +10,7 @@ The output is static files only. `npm run build` writes `dist/`, and `.github/wo
 - **Client**: the stock WebTiles client (RequireJS + jQuery, `web/vendor-client/`), our edited copies of a few of its files (`web/overrides/`: `display.js` feeds the 3D view, `player.js` and `messages.js` add hooks for the HUD), and our code in `web/src/`:
   - `three_view.js`: the 3D view, an AMD module;
   - `hud.js`: the panel HUD over the full-window 3D view (3D mode only; 2D keeps the stock layout), an AMD module;
+  - `actions.js`: the hotbar's Cast / Fire / Quaff / Read pickers and the aiming banner, an AMD module. Cast redraws the engine's own spell menu as cards; it watches messages by wrapping `comm.handle_message`;
   - `tile_names.js`: readable names and actions for feature and item tiles, inverted from the generated `tileinfo-*` modules;
   - `worker.js`: runs the engine in a Web Worker and plays the WebTiles server;
   - `sw.js`: the service worker that caches the engine per build;

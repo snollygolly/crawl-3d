@@ -8,7 +8,9 @@
 //
 // It also draws its own minimap and "In view" monster list from
 // map_knowledge; three_view calls refresh() once per frame after map changes.
-// Hotbar slots and minimap buttons just send the game's own keys.
+// Minimap buttons and most hotbar slots just send the game's own keys; Cast,
+// Fire, Quaff and Read open pickers instead (actions.js), which also handles
+// aiming.
 //
 // World-anchored bits (the floor prompt and hover tooltips) are positioned by
 // three_view, which knows the camera: it calls place_floor() every frame and
@@ -18,8 +20,8 @@
 // The stock message pane is not replaced: in HUD mode crawl3d.css moves it
 // into a panel, so --more--, prompts and text input keep working unchanged.
 define(["jquery", "comm", "./player", "./map_knowledge",
-	"./options", "./util", "./enums", "./tile_names"],
-function($, comm, player, map_knowledge, options, util, enums, names) {
+	"./options", "./util", "./enums", "./tile_names", "./actions"],
+function($, comm, player, map_knowledge, options, util, enums, names, actions) {
 	"use strict";
 
 	// player.place is the branch's short name; show the long one, in the
@@ -78,12 +80,12 @@ function($, comm, player, map_knowledge, options, util, enums, names) {
 	// Hotbar: [group, [[id, key, label, icon, help, key caption]]]
 	const SLOTS = [
 		["Magic", [
-			["cast", "z", "Cast", "\u2726", "Cast a spell"],
+			["cast", "z", "Cast", "\u2726", "Pick a spell, then click a target"],
 			["learn", "M", "Learn", "\u270E", "Memorise a spell from your library"]
 		]],
 		["Combat", [
 			["fight", "\t", "Fight", "\u2694", "Attack the nearest monster, or move toward it", "Tab"],
-			["fire", "f", "Fire", "\u27B9", "Fire or throw your quivered item"]
+			["fire", "f", "Fire", "\u27B9", "Pick something to fire, throw or zap, then click a target"]
 		]],
 		["Actions", [
 			["explore", "o", "Explore", "\u2316", "Explore the level automatically until something interesting happens"],
@@ -92,8 +94,8 @@ function($, comm, player, map_knowledge, options, util, enums, names) {
 			["abilities", "a", "Abilities", "\u2605", "Use an ability (species, god or item)"]
 		]],
 		["Items", [
-			["quaff", "q", "Quaff", "\u2697", "Drink a potion"],
-			["read", "r", "Read", "\u00B6", "Read a scroll"],
+			["quaff", "q", "Quaff", "\u2697", "Pick a potion to drink"],
+			["read", "r", "Read", "\u00B6", "Pick a scroll to read"],
 			["inventory", "i", "Inventory", "\u25A3", "Look at what you carry"]
 		]]
 	];
@@ -178,6 +180,7 @@ function($, comm, player, map_knowledge, options, util, enums, names) {
 		hooks = $.extend(hooks, opts || {});
 		root = $(TEMPLATE.trim()).appendTo("#game");
 		build_hotbar();
+		actions.init(root, { can_act: () => hooks.can_act() });
 		bind_map();
 		start_coach();
 		$("#message_pane").prepend("<div id='hud_log_head'><span>Messages</span>"
@@ -185,6 +188,7 @@ function($, comm, player, map_knowledge, options, util, enums, names) {
 		last_place = null;
 		last = { hp: null, mp: null };
 		$(document).on("crawl3d_player.hud", render);
+		$(document).on("crawl3d_actions.hud", render_hotbar);
 		$(document).on("crawl3d_message.hud", function(ev, data) { floor_message(data); });
 		$("#hud_floor").on("click", "button", function() {
 			send_key($(this).data("key"));
@@ -200,6 +204,7 @@ function($, comm, player, map_knowledge, options, util, enums, names) {
 		if (!root) return;
 		$(document).off(".hud");
 		clearInterval(coach_timer);
+		actions.cleanup();
 		root.remove();
 		$("#hud_log_head").remove();
 		root = null;
@@ -214,6 +219,7 @@ function($, comm, player, map_knowledge, options, util, enums, names) {
 		if (on === active) return;
 		active = on;
 		$(document.body).toggleClass("crawl3d-hud", on);
+		actions.set_active(on);
 		if (on)
 		{
 			render();
@@ -621,12 +627,14 @@ function($, comm, player, map_knowledge, options, util, enums, names) {
 					title: `${help} (${caption})` }).data("key", key)
 					.append($("<span class='hud-key'>").text(caption),
 						$("<span class='hud-icon'>").text(icon),
-						$("<small>").text(label)));
+						$("<small>").text(label),
+						$("<span class='hud-count'>")));
 			}
 			bar.append(g.append(row));
 		});
 		bar.on("click", ".hud-slot", function() {
-			send_key($(this).data("key"));
+			const id = this.id.replace(/^hud_slot_/, "");
+			if (!actions.slot(id)) send_key($(this).data("key"));
 			this.blur();
 		});
 	}
@@ -635,8 +643,14 @@ function($, comm, player, map_knowledge, options, util, enums, names) {
 	{
 		const caster = player.species !== "Djinni";
 		$("#hud_slot_cast").toggleClass("off", caster && player.mp <= 0);
-		$("#hud_slot_fire").toggleClass("off", player.quiver_available === false);
-		$("#hud_slot_fire small").text(player.quiver_available === false ? "Fire: none" : "Fire");
+		const fire = actions.has_fire();
+		$("#hud_slot_fire").toggleClass("off", !fire);
+		$("#hud_slot_fire small").text(fire ? "Fire" : "Fire: none");
+		for (const id of ["cast", "fire", "quaff", "read"])
+		{
+			const b = actions.badge(id);
+			$(`#hud_slot_${id} .hud-count`).text(b).toggle(!!b);
+		}
 		const hurt = player.hp < player.hp_max * 0.6 || player.mp < player.mp_max * 0.5;
 		$("#hud_slot_fight").toggleClass("hl", hostiles > 0);
 		$("#hud_slot_rest").toggleClass("hl", hostiles === 0 && hurt);
@@ -785,18 +799,21 @@ function($, comm, player, map_knowledge, options, util, enums, names) {
 		const vis = map_knowledge.visible(cell);
 		const remembered = vis ? null : "remembered, not in view";
 		const L = "<b>Left-click</b>: "; const R = "<b>Right-click</b>: describe";
+		const aiming = actions.is_targeting();
 
 		if (cell.mon && vis)
 		{
 			const m = cell.mon;
 			const att = m.att ? ATTITUDE[m.att] || "neutral" : `${THREAT[m.threat] || "unknown"} threat`;
 			return { title: cap(m.name), sub: [att, mon_state(cell)].filter(Boolean).join(" · "),
-				hint: m.att ? null : "Tab attacks the nearest monster.",
-				mouse: [`${L}${m.att ? "walk there" : "attack / move toward"}`, R] };
+				hint: m.att || aiming ? null : "Tab attacks the nearest monster.",
+				mouse: [aiming ? `${L}fire at it` : `${L}${m.att ? "walk there" : "attack / move toward"}`, R] };
 		}
 
 		const bg = enums.prepare_bg_flags(cell.t.bg || 0).value;
 		const f = names.feature(bg);
+		if (aiming)
+			return { title: f ? cap(f.name) : "Aim here", sub: remembered, mouse: [`${L}fire here`] };
 		const fg = enums.prepare_fg_flags(cell.t.fg || 0).value;
 		const it = cell.mon ? null : names.item(fg);
 		if (!f && !it) return null;

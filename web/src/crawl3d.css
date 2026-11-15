@@ -315,6 +315,177 @@ body.crawl3d-hud #message_pane {
 .hud-slot.off { opacity: 0.4; }
 .hud-slot.hl { border-color: #ffd77a; box-shadow: 0 0 12px rgba(255, 215, 122, 0.6); }
 
+/* Slot badges: counts, and a caret on slots that open a picker */
+.hud-slot .hud-count {
+    position: absolute;
+    top: 3px;
+    right: 4px;
+    color: #f0d9a4;
+    font: 600 10px/1 var(--hud-mono);
+}
+#hud_slot_cast::after,
+#hud_slot_fire::after,
+#hud_slot_quaff::after,
+#hud_slot_read::after {
+    content: "\25B4";
+    position: absolute;
+    right: 4px;
+    bottom: 1px;
+    font-size: 9px;
+    color: #8a8170;
+}
+
+/* Pickers: Fire / Quaff / Read (#hud_picker), and Cast, which redraws the
+   engine's spell menu inside its own popup (#hud_spells) */
+#hud_root #hud_picker {
+    display: none;
+    left: 50%;
+    bottom: 112px;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: min(760px, calc(100vw - 32px));
+    padding: 10px 12px 12px;
+}
+.hud-close {
+    margin-left: 8px;
+    background: none;
+    border: 0;
+    color: var(--hud-dim);
+    cursor: pointer;
+    font-size: 13px;
+}
+.hud-close:hover { color: var(--hud-text); }
+#hud_picker .hud-head > .dim { margin-left: auto; padding-left: 24px; }
+.hud-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-height: 46vh;
+    overflow-y: auto;
+    padding: 8px 6px 2px;
+}
+.hud-card {
+    position: relative;
+    flex: 0 0 230px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    padding: 6px 10px 6px 6px;
+    background: #1c1813;
+    border: 1px solid #5a4e3c;
+    border-radius: 8px;
+    color: var(--hud-text);
+    font: 12px var(--hud-sans);
+    text-align: left;
+    cursor: pointer;
+}
+.hud-card:hover { border-color: var(--hud-gold); background: #262017; }
+.hud-card.off { opacity: 0.45; }
+.hud-card.quivered,
+.hud-card.last { border-color: #b8924a; box-shadow: 0 0 10px rgba(255, 215, 122, 0.25); }
+.hud-card > .hud-key { position: absolute; top: -7px; left: -6px; font-size: 10px; padding: 0 4px; min-width: 0; }
+.hud-card-icon {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 5px;
+    background: #2a2118;
+    image-rendering: pixelated;
+}
+.hud-card-text { flex: 1; min-width: 0; }
+.hud-card-text > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-card-name { font-size: 13px; }
+.hud-card .dim, #hud_spells .dim { color: var(--hud-dim); font-size: 11px; }
+.hud-card-stats { display: flex; gap: 8px; font-size: 11px; margin-top: 2px; }
+.hud-card .hud-count { margin-left: auto; font: 600 12px var(--hud-mono); color: #f0d9a4; white-space: nowrap; }
+.hud-mp { color: #7fb2ff; }
+.hud-mp.hp { color: #ff8a8a; }
+.hud-warn { color: #ff7a7a; }
+.hud-fail.ok { color: #8fe39b; }
+.hud-fail.fair { color: #f2dc6b; }
+.hud-fail.risky { color: #ffa65c; }
+.hud-fail.bad { color: #ff6b6b; }
+.hud-empty { padding: 10px 4px; }
+
+.ui-popup.crawl3d-spells { align-items: flex-end; padding: 0 16px 112px; }
+.ui-popup.crawl3d-spells .ui-popup-overlay { background-color: rgba(0, 0, 0, 0.2); }
+.ui-popup.crawl3d-spells .ui-popup-outer {
+    margin: 0;
+    padding: 10px 12px 12px;
+    width: max-content;
+    max-width: min(760px, calc(100vw - 32px));
+    background: var(--hud-panel);
+    border: 1px solid var(--hud-border);
+    border-radius: 10px;
+    outline: none;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
+}
+.ui-popup.crawl3d-spells .ui-popup-inner { display: block; width: 100%; }
+.ui-popup.crawl3d-spells .menu_spell > :not(#hud_spells) { display: none !important; }
+#hud_spells { color: var(--hud-text); font-family: var(--hud-sans); }
+#hud_spells .hud-head { align-items: center; }
+.hud-head-keys { display: flex; gap: 6px; margin-left: auto; padding-left: 24px; }
+.hud-head-keys button {
+    font: 11px var(--hud-sans);
+    color: var(--hud-dim);
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 2px 6px;
+    cursor: pointer;
+}
+.hud-head-keys button:hover { color: var(--hud-text); border-color: #5a4e3c; background: #262017; }
+.hud-head-keys b { color: var(--hud-text); font-weight: normal; }
+/* The spell panel sits inside the stock popup, whose "#ui-stack button" rule
+   (flex, margins, CRT font, black background) would otherwise win. */
+#ui-stack #hud_spells button { margin: 0; font-family: var(--hud-sans); }
+#ui-stack #hud_spells .hud-card { background: #1c1813; border: 1px solid #5a4e3c; padding: 6px 10px 6px 6px; }
+#ui-stack #hud_spells .hud-card:hover,
+#ui-stack #hud_spells .hud-card:focus { background: #262017; border-color: var(--hud-gold); }
+#ui-stack #hud_spells .hud-card.last { border-color: #b8924a; }
+#ui-stack #hud_spells .hud-head-keys button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: 1px solid transparent;
+    padding: 2px 6px;
+    font-size: 11px;
+}
+#ui-stack #hud_spells .hud-head-keys button:hover { background: #262017; border-color: #5a4e3c; }
+#ui-stack #hud_spells .hud-close { display: inline; background: none; border: 0; padding: 0 2px; font-size: 13px; }
+#hud_spells .hud-card { flex-basis: 270px; }
+
+/* Aiming banner */
+#hud_root #hud_aim {
+    display: none;
+    left: 50%;
+    top: 84px;
+    pointer-events: none;
+    transform: translateX(-50%);
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px 8px 16px;
+    border-color: #ff5a3c;
+    font-size: 13px;
+    white-space: nowrap;
+}
+#hud_root #hud_aim.on { display: flex; }
+#hud_root.aiming #hud_coach { visibility: hidden; }
+#hud_aim button { pointer-events: auto; }
+#hud_aim .hud-aim-what b { color: #ffb199; }
+#hud_aim button {
+    font: 12px var(--hud-sans);
+    color: var(--hud-text);
+    background: #1c1813;
+    border: 1px solid #5a4e3c;
+    border-radius: 6px;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+#hud_aim button:hover { border-color: var(--hud-gold); }
+
 /* 10: coach strip */
 #hud_root #hud_coach {
     left: 50%;
