@@ -4,6 +4,7 @@
 //   * a ground plane textured from a big "atlas" canvas holding every cell's
 //     background tile (drawn with the stock cell renderer)
 //   * extruded boxes for walls and closed doors, textured from the same atlas
+//     (in third person, blocks hiding the player are drawn see-through)
 //   * billboard sprites for monsters, items, the player, clouds and bolts,
 //     drawn per cell by the stock renderer and cached as textures
 // Monster sprites are tracked by monster id and glide between cells, which
@@ -22,6 +23,10 @@ function($, comm, map_knowledge, cr, player, dngn, enums) {
 	function slot_x(x) { return ((x % GXM) + GXM) % GXM; }
 	function slot_y(y) { return ((y % GYM) + GYM) % GYM; }
 	const WALL_H = 1.25;
+	// Wall blocks within GHOST_R tiles of the camera-to-player line are
+	// drawn at GHOST_OPACITY (third person only).
+	const GHOST_R = 1.6;
+	const GHOST_OPACITY = 0.28;
 
 	// everything per game; null until init
 	let state = null;
@@ -180,26 +185,20 @@ function($, comm, map_knowledge, cr, player, dngn, enums) {
 		s.scene.add(s.ground);
 		s.ground_bounds = null;
 
+		// Ghosted walls: in third person, wall blocks between the camera and
+		// the player stay full height but are drawn see-through. The wall
+		// geometry is drawn twice: solid blocks by wall_mat, ghosted blocks
+		// by ghost_mat; each pass discards the other's blocks. The test is
+		// per cell (every vertex of a block shares cellCenter), and
+		// wall_ghosted() repeats it on the CPU for picking.
+		s.ghost = { uPlayer: { value: new THREE.Vector3() }, uGhostOn: { value: 1.0 } };
 		s.wall_mat = new THREE.MeshLambertMaterial({ map: s.atlas_tex });
-		// "Cutaway" walls: in third person, walls between the camera and the
-		// player are squashed down so they don't hide the action.
-		s.cut = { uCut: { value: new THREE.Vector4(0, 0, 0, -1) },
-			uCutOn: { value: 1.0 } };
-		s.wall_mat.onBeforeCompile = function(shader) {
-			shader.uniforms.uCut = s.cut.uCut;
-			shader.uniforms.uCutOn = s.cut.uCutOn;
-			const cutaway = [
-				"#include <begin_vertex>",
-				"{ vec2 rel = cellCenter - uCut.xy;",
-				"  float along = dot(rel, uCut.zw);",
-				"  float perp = abs(rel.x * uCut.w - rel.y * uCut.z);",
-				"  if (uCutOn > 0.5 && along < -0.6 && perp < 7.0)",
-				"    transformed.y *= 0.12; }"
-			].join("\n");
-			const body = shader.vertexShader.replace("#include <begin_vertex>", cutaway);
-			shader.vertexShader = `uniform vec4 uCut;\nuniform float uCutOn;\nattribute vec2 cellCenter;\n${body}`;
-		};
+		s.ghost_mat = new THREE.MeshLambertMaterial({ map: s.atlas_tex,
+			transparent: true, opacity: GHOST_OPACITY, depthWrite: false });
+		ghost_shader(s.wall_mat, false);
+		ghost_shader(s.ghost_mat, true);
 		s.walls = null;
+		s.walls_ghost = null;
 		s.walls_dirty = true;
 		s.atlas_dirty = true;
 
@@ -230,6 +229,44 @@ function($, comm, map_knowledge, cr, player, dngn, enums) {
 		window.removeEventListener("keydown", state.key_handler, true);
 		$(window).off(".t3d");
 		state = null;
+	}
+
+	function ghost_shader(mat, ghost_pass)
+	{
+		const s = state;
+		mat.customProgramCacheKey = function() { return ghost_pass ? "wall-ghost" : "wall-solid"; };
+		mat.onBeforeCompile = function(shader) {
+			shader.uniforms.uPlayer = s.ghost.uPlayer;
+			shader.uniforms.uGhostOn = s.ghost.uGhostOn;
+			const vert = [
+				"#include <begin_vertex>",
+				`{ vec3 c = vec3(cellCenter.x, ${(WALL_H / 2).toFixed(3)}, cellCenter.y);`,
+				"  vec3 d = uPlayer - cameraPosition;",
+				"  float t = dot(c - cameraPosition, d) / max(dot(d, d), 1e-4);",
+				"  float r = length(c - (cameraPosition + t * d));",
+				`  vGhost = (uGhostOn > 0.5 && t > 0.0 && t < 1.0 && r < ${GHOST_R.toFixed(3)}) ? 1.0 : 0.0; }`
+			].join("\n");
+			const head = "uniform vec3 uPlayer;\nuniform float uGhostOn;\nattribute vec2 cellCenter;\nvarying float vGhost;";
+			shader.vertexShader = `${head}\n${shader.vertexShader.replace("#include <begin_vertex>", vert)}`;
+			const test = ghost_pass ? "vGhost < 0.5" : "vGhost > 0.5";
+			const frag = shader.fragmentShader.replace("void main() {",
+				`void main() {\n\tif (${test}) discard;`);
+			shader.fragmentShader = `varying float vGhost;\n${frag}`;
+		};
+	}
+
+	// CPU twin of the ghost test in ghost_shader(), for picking.
+	function wall_ghosted(x, y)
+	{
+		const s = state;
+		if (settings.mode === "first") return false;
+		const cam = s.camera.position;
+		const p = s.ghost.uPlayer.value;
+		const c = new THREE.Vector3(x + 0.5, WALL_H / 2, y + 0.5);
+		const d = p.clone().sub(cam);
+		const t = c.clone().sub(cam).dot(d) / Math.max(d.lengthSq(), 1e-4);
+		if (!(t > 0 && t < 1)) return false;
+		return c.distanceTo(cam.clone().addScaledVector(d, t)) < GHOST_R;
 	}
 
 	function make_hover_marker()
@@ -336,8 +373,10 @@ function($, comm, map_knowledge, cr, player, dngn, enums) {
 		if (s.walls)
 		{
 			s.scene.remove(s.walls);
+			s.scene.remove(s.walls_ghost);
 			s.walls.geometry.dispose();
 			s.walls = null;
+			s.walls_ghost = null;
 		}
 		const pos = []; const uv = []; const nrm = []; const col = []; const ctr = [];
 		let cx = 0; let cz = 0;
@@ -399,8 +438,14 @@ function($, comm, map_knowledge, cr, player, dngn, enums) {
 		geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
 		geo.setAttribute("cellCenter", new THREE.Float32BufferAttribute(ctr, 2));
 		s.wall_mat.vertexColors = true;
+		s.ghost_mat.vertexColors = true;
 		s.walls = new THREE.Mesh(geo, s.wall_mat);
 		s.scene.add(s.walls);
+		// drawn last, so sprites behind (and the player) show through
+		s.walls_ghost = new THREE.Mesh(geo, s.ghost_mat);
+		s.walls_ghost.renderOrder = 10;
+		s.walls_ghost.raycast = function() {};
+		s.scene.add(s.walls_ghost);
 	}
 
 	// ------------------------------------------------------------------
@@ -649,8 +694,8 @@ function($, comm, map_knowledge, cr, player, dngn, enums) {
 		}
 		cam.updateProjectionMatrix();
 		s.torch.position.set(pp.x, 1.6, pp.z);
-		s.cut.uCut.value.set(pp.x, pp.z, cf.x, cf.z);
-		s.cut.uCutOn.value = settings.mode === "first" ? 0.0 : 1.0;
+		s.ghost.uPlayer.value.set(pp.x, 0.5, pp.z);
+		s.ghost.uGhostOn.value = settings.mode === "first" ? 0.0 : 1.0;
 		s.torch.intensity = 5 + Math.sin(now / 130) * 0.25 + Math.sin(now / 57) * 0.15;
 
 		s.renderer.render(s.scene, cam);
@@ -785,30 +830,48 @@ function($, comm, map_knowledge, cr, player, dngn, enums) {
 
 	function cell_at(ev)
 	{
+		const r = state.renderer.domElement.getBoundingClientRect();
+		return pick(ev.clientX - r.left, ev.clientY - r.top);
+	}
+
+	// The walkable cell under canvas point (px, py) in CSS pixels, or null.
+	// Solid walls block the ray and give no target; ghosted walls let it
+	// through to the floor behind them.
+	function pick(px, py)
+	{
 		const s = state;
-		const r = s.renderer.domElement.getBoundingClientRect();
-		const ndc = new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1,
-			-((ev.clientY - r.top) / r.height) * 2 + 1);
+		if (!s || !s.w || !s.h) return null;
+		const ndc = new THREE.Vector2((px / s.w) * 2 - 1, -(py / s.h) * 2 + 1);
+		s.camera.updateMatrixWorld();
 		s.raycaster.setFromCamera(ndc, s.camera);
 		const targets = [s.ground];
 		if (s.walls) targets.push(s.walls);
-		const hit = s.raycaster.intersectObjects(targets, false)[0];
-		if (!hit) return null;
-		// nudge into the face that was hit
-		const p = hit.point.clone();
-		if (hit.face) p.addScaledVector(hit.face.normal, -0.01);
-		return { x: Math.floor(p.x), y: Math.floor(p.z) };
+		const hits = s.raycaster.intersectObjects(targets, false);
+		for (const hit of hits)
+		{
+			// nudge into the face that was hit
+			const p = hit.point.clone();
+			if (hit.face) p.addScaledVector(hit.face.normal, -0.01);
+			const x = Math.floor(p.x); const y = Math.floor(p.z);
+			const cell = map_knowledge.get(x, y);
+			if (hit.object === s.walls)
+			{
+				if (wall_ghosted(x, y)) continue;
+				return null;
+			}
+			if (!is_known(cell) || cell.__wall3d) return null;
+			return { x: x, y: y };
+		}
+		return null;
 	}
 
 	function hover_at(ev)
 	{
 		const c = cell_at(ev);
 		const m = state.hover;
-		if (!c || !is_known(map_knowledge.get(c.x, c.y))) { m.visible = false; return; }
+		if (!c) { m.visible = false; return; }
 		m.visible = true;
-		m.position.x = c.x + 0.5;
-		m.position.z = c.y + 0.5;
-		m.position.y = map_knowledge.get(c.x, c.y).__wall3d ? WALL_H + 0.02 : 0.02;
+		m.position.set(c.x + 0.5, 0.02, c.y + 0.5);
 	}
 
 	// ------------------------------------------------------------------
@@ -881,6 +944,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums) {
 		update: update,
 		clear: clear,
 		settings: settings,
+		pick: pick,
 		is_active: function() { return !!state; }
 	};
 });

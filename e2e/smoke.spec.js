@@ -24,6 +24,11 @@ test.describe("with the engine", () => {
 		const errors = [];
 		const missing = [];
 		page.on("pageerror", e => errors.push(e.message));
+		// three.js reports shader compile failures on the console
+		const glErrors = [];
+		page.on("console", m => {
+			if (m.type() === "error" && /WebGL|shader/i.test(m.text())) glErrors.push(m.text());
+		});
 		page.on("response", r => {
 			if (r.status() >= 400) missing.push(`${r.status()} ${r.url()}`);
 		});
@@ -55,8 +60,28 @@ test.describe("with the engine", () => {
 		await waitInPage(page, () => !document.getElementById("stats_time").textContent.trim().startsWith("0.0"),
 			"game time to pass after moving", 15000);
 
+		// Picking never targets a wall, solid or ghosted, but does find floor.
+		const picked = await page.evaluate(() => {
+			const view = requirejs("game-local/three_view");
+			const mk = requirejs("game-local/map_knowledge");
+			const canvas = document.querySelector("#three_view canvas");
+			const w = canvas.clientWidth; const h = canvas.clientHeight;
+			const out = { floor: 0, walls: [] };
+			for (let py = 4; py < h; py += 12)
+				for (let px = 4; px < w; px += 12) {
+					const c = view.pick(px, py);
+					if (!c) continue;
+					if (mk.get(c.x, c.y).__wall3d) out.walls.push(c);
+					else out.floor++;
+				}
+			return out;
+		});
+		expect(picked.walls).toEqual([]);
+		expect(picked.floor).toBeGreaterThan(0);
+
 		await page.screenshot({ path: testInfo.outputPath("game.png") });
 		expect(missing).toEqual([]);
 		expect(errors).toEqual([]);
+		expect(glErrors).toEqual([]);
 	});
 });
