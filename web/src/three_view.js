@@ -882,21 +882,22 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 		s.renderer.render(s.scene, cam);
 	}
 
-	// World floor point -> canvas CSS pixels; on: in front of the camera and
-	// inside the view.
-	function to_screen(wx, wz)
+	// World point at height wy (default the floor) -> canvas CSS pixels;
+	// on: in front of the camera and inside the view.
+	function to_screen(wx, wz, wy)
 	{
 		const s = state;
-		const v = s.feet.set(wx, 0, wz).project(s.camera);
+		const v = s.feet.set(wx, wy || 0, wz).project(s.camera);
 		return { x: (v.x + 1) / 2 * s.w, y: (1 - v.y) / 2 * s.h,
 			on: v.z <= 1 && Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1 };
 	}
 
-	// The centre of map cell (x, y) on screen, or null (for specs and tools).
-	function project(x, y)
+	// The centre of map cell (x, y) on screen, at height h above the floor
+	// (default 0), or null (for specs and tools).
+	function project(x, y, h)
 	{
 		if (!state || !state.w) return null;
-		const p = to_screen(x + 0.5, y + 0.5);
+		const p = to_screen(x + 0.5, y + 0.5, h);
 		return p.on ? { x: p.x, y: p.y } : null;
 	}
 
@@ -1034,8 +1035,10 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 	}
 
 	// What the ray through canvas point (px, py) in CSS pixels hits first:
-	// { x, y, wall } or null. Solid walls stop the ray; ghosted walls let it
-	// through to whatever is behind them.
+	// { x, y, wall, door } or null. Solid walls stop the ray; ghosted walls
+	// let it through to whatever is behind them. Closed doors stop it even
+	// when ghosted: from above, the door beside the player is always
+	// ghosted, and it's the one most worth clicking.
 	function raycast(px, py)
 	{
 		const s = state;
@@ -1055,11 +1058,12 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 			const cell = map_knowledge.get(x, y);
 			if (hit.object === s.walls)
 			{
-				if (wall_ghosted(x, y)) continue;
-				return { x: x, y: y, wall: true };
+				const door = box_tiles.has(bg_value(cell));
+				if (!door && wall_ghosted(x, y)) continue;
+				return { x: x, y: y, wall: true, door: door };
 			}
 			if (!is_known(cell) || cell.__wall3d) return null;
-			return { x: x, y: y, wall: false };
+			return { x: x, y: y, wall: false, door: false };
 		}
 		return null;
 	}
@@ -1076,7 +1080,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 	{
 		const h = raycast(px, py);
 		if (!h) return null;
-		if (h.wall && !box_tiles.has(bg_value(map_knowledge.get(h.x, h.y)))) return null;
+		if (h.wall && !h.door) return null;
 		return { x: h.x, y: h.y };
 	}
 
@@ -1086,8 +1090,10 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 		const h = raycast(ev.clientX - r.left, ev.clientY - r.top);
 		const m = state.hover;
 		const c = h && !h.wall ? h : null;
-		m.visible = !!c;
-		if (c) m.position.set(c.x + 0.5, 0.02, c.y + 0.5);
+		// the ring also marks a door, since clicking one travels to it
+		const ring = h && (!h.wall || h.door) ? h : null;
+		m.visible = !!ring;
+		if (ring) m.position.set(ring.x + 0.5, ring.wall ? WALL_H + 0.02 : 0.02, ring.y + 0.5);
 		// While the engine is aiming, the mouse moves its aim (as in 2D).
 		const g = window.game;
 		if (c && g && g.can_target && g.can_target())
@@ -1184,6 +1190,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 		clear: clear,
 		settings: settings,
 		pick: pick,
+		pick_target: pick_target,
 		project: project,
 		floor_bg_for: floor_bg_for,
 		is_standing: is_standing,
