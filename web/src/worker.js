@@ -28,6 +28,30 @@ function flush()
 }
 setInterval(flush, 50);
 
+// What the title screen's save list shows about this character, from the engine's "player"
+// messages (they're deltas, so merge them). Sent to the page every couple of seconds at most.
+const META_FIELDS = ["title", "species", "god", "xl", "place", "depth", "turn"];
+const meta = {};
+let metaDirty = false;
+function note_player(msg)
+{
+	let obj;
+	try { obj = JSON.parse(msg); } catch (e) { return; }
+	for (const k of META_FIELDS)
+		if (k in obj && obj[k] !== meta[k])
+		{
+			meta[k] = obj[k];
+			metaDirty = true;
+		}
+}
+function send_meta()
+{
+	if (!metaDirty) return;
+	metaDirty = false;
+	postMessage({ type: "meta", data: Object.assign({}, meta) });
+}
+setInterval(send_meta, 2000);
+
 // Called from C++ (tileweb.cc) for every finished WebTiles message.
 self.crawlOut = function(msg)
 {
@@ -63,6 +87,7 @@ self.crawlOut = function(msg)
 		flush();
 		postMessage({ type: "client" });
 	}
+	if (msg.indexOf('"msg":"player"') !== -1) note_player(msg);
 	queue.push(msg);
 	if (queue.length > 400) flush();
 };
@@ -159,12 +184,14 @@ function start_engine(name, extra_args)
 		}],
 		onExit: function(code) {
 			flush();
+			send_meta();
 			sync_saves();
 			postMessage({ type: "exit", code: code, reason: exitInfo.reason,
 				message: exitInfo.message });
 		},
 		onAbort: function(what) {
 			flush();
+			send_meta();
 			sync_saves();
 			postMessage({ type: "exit", code: -1, reason: "crash",
 				message: String(what) });

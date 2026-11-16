@@ -17,6 +17,7 @@ The output is static files only. `npm run build` writes `dist/`, and `.github/wo
   - `worker.js`: runs the engine in a Web Worker and plays the WebTiles server;
   - `sw.js`: the service worker that caches the engine per build;
   - `fakesocket.js`: replaces the client's WebSocket;
+  - `title.js`: the start screen. It walks a three.js dungeon hallway (procedural textures, stopped and its WebGL context released once the game starts), draws the stone-block "Crawl 3D" title as inline SVG, and lists saved games to resume. Which saves exist comes from the engine's IndexedDB (IDBFS database `/saves`, `*.cs` keys), read without starting the engine. Their details come from `localStorage.crawl3d_saves`, which `fakesocket.js` fills from the worker's `meta` messages (summarised from `player` messages) plus playtime;
   - `start.html` and `crawl3d.css`.
 
   `crawl3d.css` is our only stylesheet. The stock ones (`static/style.css`, `fonts.css`, `gamedata/style.css`, `simplebar.css`) are never edited. `assemble.py` loads them into `@layer stock`, and `crawl3d.css` stays unlayered, so any rule of ours beats stock CSS for the properties it sets, at any specificity and in any state (`:hover`, `:focus`). So:

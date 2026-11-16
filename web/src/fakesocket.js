@@ -25,6 +25,37 @@
 
 	const debug = window.crawl3d_debug = { types: [], sent: [] };
 
+	// Details of this character's save for the title screen (title.js), kept in localStorage by
+	// name: what the worker reports from the engine, plus how long it has been played. Playtime
+	// counts the gaps between inputs, each capped at a minute, so a game left open doesn't count.
+	const META_KEY = "crawl3d_saves";
+	const IDLE_CAP = 60000;
+	let player_name = null;
+	let last_input = 0;
+	let unsaved_ms = 0;
+
+	function note_input()
+	{
+		const now = Date.now();
+		if (last_input) unsaved_ms += Math.min(now - last_input, IDLE_CAP);
+		last_input = now;
+	}
+
+	function save_meta(data)
+	{
+		if (!player_name) return;
+		try {
+			const all = JSON.parse(localStorage.getItem(META_KEY) || "{}") || {};
+			const rec = Object.assign(all[player_name] || {}, data || {});
+			rec.played_ms = (rec.played_ms || 0) + unsaved_ms;
+			rec.updated = Date.now();
+			unsaved_ms = 0;
+			all[player_name] = rec;
+			localStorage.setItem(META_KEY, JSON.stringify(all));
+		} catch (e) {}
+	}
+	window.addEventListener("pagehide", function() { save_meta(null); });
+
 	FakeSocket.prototype._deliver = function(text)
 	{
 		try {
@@ -55,7 +86,11 @@
 		case "status":
 			window.crawl3d_status(m.text);
 			break;
+		case "meta":
+			save_meta(m.data);
+			break;
 		case "exit":
+			save_meta(null);
 			this.readyState = 3;
 			window.crawl3d_game_over(m);
 			break;
@@ -65,6 +100,7 @@
 	FakeSocket.prototype.send = function(text)
 	{
 		if (debug.sent.length < 300) debug.sent.push(text.slice(0, 120));
+		note_input();
 		this.worker.postMessage({ type: "send", data: text });
 	};
 
@@ -75,6 +111,7 @@
 	window.crawl3d_start = function(name, extra_args)
 	{
 		if (!the_socket) return false;
+		player_name = name;
 		the_socket.worker.postMessage({ type: "start", name: name,
 			extra_args: extra_args || [] });
 		return true;

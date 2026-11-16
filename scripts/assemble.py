@@ -134,6 +134,7 @@ head_extra = """
     </script>
     <script src="gamehtml.js"></script>
     <script src="fakesocket.js"></script>
+    <script src="title.js" defer></script>
     <link rel="stylesheet" type="text/css" href="crawl3d.css">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
@@ -151,7 +152,7 @@ start = start.replace("{{SOURCE_URL}}", SOURCE_URL)
 html = html.replace("<body>", "<body>\n" + start, 1)
 open(os.path.join(OUT, "index.html"), "w").write(html)
 
-for f in ["fakesocket.js", "crawl3d.css"]:
+for f in ["fakesocket.js", "title.js", "crawl3d.css"]:
     shutil.copy(os.path.join(WEB, "src", f), OUT)
 
 os.makedirs(os.path.join(OUT, "three"))
