@@ -173,6 +173,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 		s.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 		s.renderer.outputColorSpace = THREE.SRGBColorSpace;
 		s.container.append(s.renderer.domElement);
+		s.bars = $("<div id='crawl3d_hpbars'></div>").appendTo(s.container);
 
 		s.scene = new THREE.Scene();
 		s.scene.background = new THREE.Color(0x05040a);
@@ -595,11 +596,40 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 		return `cell:${x},${y}`;
 	}
 
+	// Monster damage level from the fg flags: 0 uninjured .. 5 almost dead.
+	// It's all Crawl tells the player about a monster's health.
+	const MDAM = ["MDAM_LIGHT", "MDAM_MOD", "MDAM_HEAVY", "MDAM_SEV", "MDAM_ADEAD"];
+	const MDAM_LO = 0x40000000 | (1 << 31); const MDAM_HI = 0x01;
+	function mdam_level(cell)
+	{
+		if (!cell || !cell.mon || !cell.t || !cell.t.fg) return 0;
+		const f = enums.prepare_fg_flags(cell.t.fg);
+		for (let i = MDAM.length - 1; i >= 0; i--)
+			if (f[MDAM[i]]) return i + 1;
+		return 0;
+	}
+
+	// The fg flags without the damage level: the 3D view draws a health bar
+	// instead of the stock damage icon, and a monster taking damage keeps
+	// its texture.
+	function fg_without_mdam(fg)
+	{
+		const f = enums.prepare_fg_flags(fg);
+		const out = $.extend([], f);
+		for (const k of MDAM) out[k] = false;
+		return out;
+	}
+
 	function fg_signature(cell)
 	{
 		const t = cell.t;
 		if (!t) return null;
-		const fg = t.fg && t.fg.value !== undefined ? t.fg.value : (t.fg || 0);
+		let fg = t.fg && t.fg.value !== undefined ? t.fg.value : (t.fg || 0);
+		if (fg && cell.mon)
+		{
+			const f = enums.prepare_fg_flags(t.fg);
+			fg = [(f[0] & ~MDAM_LO) >>> 0, (f[1] || 0) & ~MDAM_HI];
+		}
 		const cloud = t.cloud && t.cloud.value !== undefined ? t.cloud.value : (t.cloud || 0);
 		const ov = (t.ov || []).filter(function(o) {
 			return o >= dngn.FEAT_MAX; });
@@ -635,6 +665,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 				{ CURSOR1: false, CURSOR2: false, CURSOR3: false,
 					TUT_CURSOR: false, NEW_STAIR: false, NEW_TRANSPORTER: false });
 			const t = $.extend({}, cell.t, { bg: bg });
+			if (cell.mon && cell.t.fg) t.fg = fg_without_mdam(cell.t.fg);
 			const saved_bg = d.draw_background;
 			d.draw_background = function() {};
 			d.do_render_cell(x, y, 8, TS, $.extend({}, cell, { t: t }), t);
@@ -674,6 +705,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 		if (!e) return;
 		state.scene.remove(e.sprite);
 		e.sprite.material.dispose();
+		if (e.bar) e.bar.remove();
 		delete state.sprites[key];
 	}
 
@@ -725,9 +757,44 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 				// Shift the sprite so its tile (not the padding) is centred
 				e.target.set(x + 0.5, 0, y + 0.5);
 				e.is_player = (key === "player");
+				set_bar(e, cell.mon, vis ? mdam_level(cell) : 0);
 			}
 		for (const k in s.sprites)
 			if (!seen[k]) remove_sprite(k);
+	}
+
+	// Health bar over a damaged monster in view; none when uninjured.
+	function set_bar(e, mon, level)
+	{
+		if (!level)
+		{
+			if (e.bar) { e.bar.remove(); e.bar = null; }
+			return;
+		}
+		if (!e.bar)
+			e.bar = $("<div class='hpbar'><div class='hpbar-fill'></div></div>")
+				.appendTo(state.bars);
+		e.bar.attr({ id: `hpbar_${mon.id}`, "data-level": level,
+			title: HP_WORDS[level] });
+	}
+	const HP_WORDS = ["uninjured", "lightly damaged", "moderately damaged",
+		"heavily damaged", "severely damaged", "almost dead"];
+	// Height of a bar above the floor, just over a monster's head
+	const BAR_H = 1.15;
+
+	function place_bars()
+	{
+		const s = state;
+		for (const key in s.sprites)
+		{
+			const e = s.sprites[key];
+			if (!e.bar) continue;
+			const p = e.sprite.position;
+			const q = to_screen(p.x, p.z, BAR_H);
+			e.bar[0].style.display = q.on ? "" : "none";
+			if (q.on)
+				e.bar[0].style.transform = `translate(${q.x.toFixed(1)}px, ${q.y.toFixed(1)}px)`;
+		}
 	}
 
 	// ------------------------------------------------------------------
@@ -880,6 +947,7 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 			s.aim_sent = null;
 
 		s.renderer.render(s.scene, cam);
+		place_bars();
 	}
 
 	// World point at height wy (default the floor) -> canvas CSS pixels;

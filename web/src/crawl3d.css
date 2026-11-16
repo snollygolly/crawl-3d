@@ -24,6 +24,33 @@
 }
 #three_view canvas { display: block; }
 
+/* Health bars over damaged monsters (three_view places them at their heads).
+   Crawl only tells the player a damage level, so the fill steps with it. */
+#crawl3d_hpbars {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.hpbar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 36px;
+    height: 5px;
+    margin: -5px 0 0 -18px;
+    padding: 1px;
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+    will-change: transform;
+}
+.hpbar-fill { height: 100%; border-radius: 1px; }
+.hpbar[data-level="1"] .hpbar-fill { width: 80%; background: #8ae234; }
+.hpbar[data-level="2"] .hpbar-fill { width: 60%; background: #edd400; }
+.hpbar[data-level="3"] .hpbar-fill { width: 40%; background: #f57900; }
+.hpbar[data-level="4"] .hpbar-fill { width: 22%; background: #ef2929; }
+.hpbar[data-level="5"] .hpbar-fill { width: 8%; background: #cc0000; }
+
 #three_toolbar {
     position: absolute;
     z-index: 60;
