@@ -21,7 +21,8 @@
     "fetch-engine": "bash scripts/fetch-engine.sh",
     "build-engine": "bash scripts/build-engine.sh",
     "build-engine:docker": "bash scripts/build-engine-docker.sh",
-    "upload-engine": "node scripts/upload-engine.mjs"
+    "upload-engine": "node scripts/upload-engine.mjs",
+    "icons": "node scripts/icons.mjs"
   },
   "dependencies": {
     "three": "0.187.0"

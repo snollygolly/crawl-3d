@@ -16,6 +16,21 @@ test("the start screen loads without page errors", async({ page }) => {
 	expect(errors).toEqual([]);
 });
 
+test("the page links its icons and an installable manifest", async({ page, request }) => {
+	await page.goto("/");
+	const hrefs = await page.locator("link[rel='icon'], link[rel='apple-touch-icon'], link[rel='manifest']")
+		.evaluateAll(links => links.map(l => l.href));
+	expect(hrefs.length).toBe(4);
+	const manifest = await (await request.get(new URL("manifest.webmanifest", page.url()).href)).json();
+	expect(manifest.name).toBe("Crawl 3D");
+	expect(manifest.icons.map(i => i.purpose)).toContain("maskable");
+	const icons = manifest.icons.map(i => new URL(i.src, page.url()).href);
+	for (const url of [...new Set([...hrefs, ...icons])]) {
+		const res = await request.get(url);
+		expect(res.ok(), url).toBe(true);
+	}
+});
+
 test.describe("with the engine", () => {
 	test.skip(!engine.present, `no engine-build/${engine.build}/ - build it with npm run build-engine:docker`);
 	test.setTimeout(240000);

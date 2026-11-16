@@ -12,7 +12,7 @@ own build, `scripts/assemble.py`.
 
 ```
 engine.json              pins Crawl (repo, tag, commit) + the engine build id
-evilmouse.json           title, tagline and source link; hub block (slug crawl3d) for publishing
+evilmouse.json           title, tagline and source link; hub block (slug crawl) for publishing
 config.example.json      template for config.json (local server port/host)
 engine/
   crawl.patch            our changes to Crawl (~110 lines): browser I/O bridge,
@@ -25,17 +25,18 @@ scripts/
   fetch-engine.sh        vendor/crawl <- Crawl at the pinned commit + patch
   build-engine.sh        vendor/crawl -> engine-build/<build>/ (wasm + data + tiles)
   build-engine-docker.sh same, inside engine/Dockerfile
-  upload-engine.mjs      engine-build/<build>/ -> hub bucket games/crawl3d/files/engine/<build>/
+  upload-engine.mjs      engine-build/<build>/ -> hub bucket games/crawl/files/engine/<build>/
+  icons.mjs              draws public/favicon.svg and the PNG app icons (npm run icons)
   assemble.py            web/ + public/ + three.js -> dist/ (the engine is NOT copied in)
   serve.mjs              local server: dist/ + engine-build/ at the hub's URLs
-  lib/                   tested helpers for the two scripts above
+  lib/                   tested helpers for the scripts above
 web/
   src/                   OUR CODE: three_view.js (3D view), worker.js (runs the
                          engine, fakes the WebTiles server), fakesocket.js,
                          start.html, crawl3d.css
   overrides/             our edited copies of stock client files (display.js)
   vendor-client/         stock WebTiles client from Crawl 0.34.1 (GPL)
-public/                  favicons, copied to the root of dist/
+public/                  favicons, app icons and PWA manifest, copied to the root of dist/
 vendor/crawl/            Crawl source; gitignored, filled by fetch-engine.sh
 test/                    unit tests (node --test)
 e2e/                     Playwright specs (desktop WebKit)
@@ -103,12 +104,12 @@ Upgrading Crawl:
 
 Pushing to `main` runs `.github/workflows/publish.yml`. It calls the hub's
 reusable workflow, which runs `npm run build` and publishes `dist/` to
-`https://crawl3d.<hub domain>/`. The repo needs the hub's secrets; set them
+`https://crawl.<hub domain>/`. The repo needs the hub's secrets; set them
 from the spa-hub repo with `./scripts/set-game-secrets.sh snollygolly/crawl-3d`.
 
 The engine isn't part of that build: the hub's build has no secrets, and 46 MB
 per release is wasteful. It is uploaded once per engine build with
-`npm run upload-engine` to `games/crawl3d/files/engine/<build>/` in the hub's
+`npm run upload-engine` to `games/crawl/files/engine/<build>/` in the hub's
 bucket. The hub serves it same-origin at `/.hub/files/engine/<build>/`, cached
 forever. So a new engine is:
 1. build it;

@@ -4,7 +4,7 @@
   web/vendor-client/   stock WebTiles client from Crawl (static/, gamedata/, templates/)
   web/overrides/       our edited copies of stock client files (win over vendor-client)
   web/src/             our code: 3D view, worker, fake socket, start screen
-  public/              favicons and the hub's thumb.png, copied to the root as-is
+  public/              favicons, app icons and the PWA manifest, copied to the root as-is
   node_modules/three/  three.js
   evilmouse.json       title and source link
 
@@ -116,6 +116,9 @@ html = html.replace('data-main="/static/scripts/app"', 'data-main="static/script
 html = html.replace('href="/static/', 'href="static/')
 html = layer_stock_css(html, 2)
 html = re.sub(r'\s*<img style="display:none;"[^>]*title_[^>]*>', "", html)  # lobby art
+# the stock Stone Soup favicon; ours (public/, linked below) replaces it
+html, n = re.subn(r'\s*<link rel="icon" href="static/stone_soup_icon-32x32\.png"[^>]*>', "", html)
+assert n == 1, "stock favicon link not found"
 assert "{{" not in html and "{%" not in html, re.findall(r"{[{%].*", html)[:3]
 
 head_extra = """
@@ -133,7 +136,10 @@ head_extra = """
     <script src="fakesocket.js"></script>
     <link rel="stylesheet" type="text/css" href="crawl3d.css">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#07050a">
 """
 html = html.replace("<title>WebTiles - Dungeon Crawl Stone Soup</title>",
                     "<title>%s - a fan client for Dungeon Crawl Stone Soup</title>" % TITLE
