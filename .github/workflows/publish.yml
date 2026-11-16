@@ -1,6 +1,10 @@
-# Copy into a game repo as .github/workflows/publish.yml.
-# Identical in every game; the slug comes from evilmouse.json.
-# If your hub repo is not snollygolly/spa-hub, change the "uses:" line.
+# Publishes dist/ to the game hub on every push to main.
+#
+# This is spa-hub's reusable publish-game.yml written out in full, rather than called with
+# `uses: snollygolly/spa-hub/...`: this repo is public (it's the GPL source for the deployed game)
+# and spa-hub is private, and GitHub never lets a public repo call a private repo's reusable
+# workflow. Checking the hub out with HUB_REPO_TOKEN does work, so only that step touches it.
+# Keep this in step with spa-hub's .github/workflows/publish-game.yml.
 
 name: Publish
 
@@ -10,10 +14,96 @@ on:
   workflow_dispatch:
 
 jobs:
+  # The game's own code (npm install scripts, the build) runs here, with no secrets.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the game
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install game dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: hub-build
+          path: dist
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
+
+  # Runs only the hub's code. The game is checked out for evilmouse.json and its history (the
+  # commit count), but nothing from it is installed or run.
   publish:
-    uses: snollygolly/spa-hub/.github/workflows/publish-game.yml@main
-    secrets: inherit
-    # Only needed when a game doesn't fit the defaults:
-    # with:
-    #   build-command: npm run build:prod
-    #   dist-dir: build
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    concurrency:
+      group: hub-publish-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - name: Check out the game
+        uses: actions/checkout@v4
+        with:
+          path: game
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the hub
+        uses: actions/checkout@v4
+        with:
+          repository: snollygolly/spa-hub
+          ref: main
+          token: ${{ secrets.HUB_REPO_TOKEN }}
+          path: hub
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: hub/package-lock.json
+
+      - name: Install hub dependencies
+        working-directory: hub
+        run: npm ci --omit=dev --ignore-scripts
+
+      - name: Download the build
+        uses: actions/download-artifact@v4
+        with:
+          name: hub-build
+          path: build
+
+      - name: Publish
+        env:
+          HUB_STORAGE_DRIVER: s3
+          AWS_ENDPOINT_URL: ${{ secrets.AWS_ENDPOINT_URL }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_S3_BUCKET_NAME: ${{ secrets.AWS_S3_BUCKET_NAME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          HUB_URL: ${{ secrets.HUB_URL }}
+          HUB_ADMIN_TOKEN: ${{ secrets.HUB_ADMIN_TOKEN }}
+        run: >-
+          node hub/scripts/publish.mjs
+          --dir build
+          --evilmouse-json game/evilmouse.json
+          --release "$GITHUB_SHA"
+          --keep 5
