@@ -69,7 +69,7 @@ copytree(os.path.join(VC, "static"), os.path.join(OUT, "static"))
 copytree(os.path.join(VC, "gamedata"), os.path.join(OUT, "gamedata"))
 copytree(os.path.join(WEB, "overrides"), OUT)
 copytree(PUBLIC, OUT)
-for f in ["three_view.js", "hud.js", "actions.js", "inventory.js", "menus.js", "tile_names.js"]:
+for f in ["three_view.js", "hud.js", "actions.js", "inventory.js", "menus.js", "newgame.js", "tile_names.js"]:
     shutil.copy(os.path.join(WEB, "src", f), os.path.join(OUT, "gamedata"))
 
 # app.js uses absolute paths; make them relative so the site works in a subfolder

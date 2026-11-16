@@ -23,8 +23,8 @@
 // The stock message pane is not replaced: in HUD mode crawl3d.css moves it
 // into a panel, so --more--, prompts and text input keep working unchanged.
 define(["jquery", "comm", "./player", "./map_knowledge",
-	"./options", "./util", "./enums", "./tile_names", "./actions", "./inventory", "./menus"],
-function($, comm, player, map_knowledge, options, util, enums, names, actions, inventory, menus) {
+	"./options", "./util", "./enums", "./tile_names", "./actions", "./inventory", "./menus", "./newgame"],
+function($, comm, player, map_knowledge, options, util, enums, names, actions, inventory, menus, newgame) {
 	"use strict";
 
 	// player.place is the branch's short name; show the long one, in the
@@ -201,6 +201,7 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 		actions.init(root, { can_act: () => hooks.can_act() });
 		inventory.init({ can_act: () => hooks.can_act() });
 		menus.init();
+		newgame.init();
 		map_xf = null;
 		map_buf = null;
 		map_yaw = 0;
@@ -241,6 +242,7 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 		actions.cleanup();
 		inventory.cleanup();
 		menus.cleanup();
+		newgame.cleanup();
 		root.remove();
 		$("#hud_log_head").remove();
 		root = null;

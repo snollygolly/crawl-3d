@@ -1398,3 +1398,206 @@ body.crawl3d-hud #action-panel-placeholder {
     .hud-inv-bag { max-height: 30vh; }
     .hud-inv-info { white-space: normal; }
 }
+
+/* ------------------------------------------------------------------
+   Character creation (newgame.js): the species / background / weapon
+   screens and the random-combination prompt, as HUD cards. Not under
+   body.crawl3d-hud: it comes before the game view, for everyone. */
+
+.ui-popup.crawl3d-newgame .ui-popup-outer {
+    box-sizing: border-box;
+    width: min(980px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    margin: 16px;
+    padding: 16px 18px 14px;
+    background: rgba(14, 12, 10, 0.97);
+    border: 1px solid var(--hud-border);
+    border-radius: 12px;
+    outline: none;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+    color: var(--hud-text);
+    font-family: var(--hud-sans);
+}
+.ui-popup.crawl3d-newgame .ui-popup-inner { flex: 1 1 auto; width: 100%; min-height: 0; max-height: none; }
+.crawl3d-newgame .newgame-choice { flex: 1 1 auto; width: 100%; min-height: 0; }
+.crawl3d-newgame .hud-menu-prefix { display: none; }
+.crawl3d-newgame .ng-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    width: 30px;
+    height: 30px;
+    margin: 0;
+    padding: 0;
+    border-radius: 6px;
+    font-size: 16px;
+    line-height: 30px;
+}
+.crawl3d-newgame .ng-close:hover { background: #2c241a; }
+
+/* header: "Welcome, Cap." in gold, the question under it */
+.crawl3d-newgame .newgame-choice > .header {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    margin: 0;
+    padding: 0 40px 10px 0;
+    white-space: normal;
+}
+.crawl3d-newgame .newgame-choice > .ng-title { font: 18px var(--hud-serif); }
+.crawl3d-newgame .ng-title span { color: var(--hud-gold); }
+.crawl3d-newgame .ng-title > canvas { margin: 0; border-radius: 6px; background: #2a2118; }
+.crawl3d-newgame .ng-title .ng-ask,
+.crawl3d-newgame .ng-prompt,
+.crawl3d-newgame .ng-prompt span { flex-basis: 100%; color: var(--hud-text); font: 13px var(--hud-sans); }
+.crawl3d-newgame .newgame-choice > .ng-head-last { margin-bottom: 10px; border-bottom: 1px solid #3b3227; }
+/* the stock chat bar means nothing offline; the HUD hides it in game too */
+body:has(.ui-popup.crawl3d-newgame) #chat,
+body:has(.ui-popup.crawl3d-newgame) #chat_hidden { display: none !important; }
+
+/* the choices: the engine's columns, as cards */
+.crawl3d-newgame .main-items {
+    grid-template-columns: repeat(var(--ng-cols, 3), minmax(0, 1fr));
+    gap: 6px 12px;
+    padding: 8px 4px 4px 8px;
+}
+/* one column (the weapon screen): flow the cards instead of stretching them */
+.crawl3d-newgame .main-items.ng-single { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.crawl3d-newgame .main-items.ng-single > * { grid-row: auto !important; grid-column: auto !important; }
+.crawl3d-newgame .main-items > .ng-head {
+    align-self: end;
+    margin: 6px 0 2px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid #3b3227;
+    font: 12px var(--hud-serif);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.crawl3d-newgame .main-items > .ng-head::before { display: none; }
+.crawl3d-newgame .main-items > .ng-head span { color: var(--hud-gold); }
+.crawl3d-newgame .ng-card {
+    position: relative;
+    gap: 8px;
+    min-width: 0;
+    padding: 4px 10px 4px 4px;
+    background: #1c1813;
+    border: 1px solid #5a4e3c;
+    border-radius: 8px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.crawl3d-newgame .ng-card > canvas { flex: 0 0 auto; border-radius: 5px; background: #2a2118; }
+.crawl3d-newgame .ng-card-text { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+.crawl3d-newgame .ng-card-text > span { margin: 0; overflow: hidden; text-overflow: ellipsis; }
+.crawl3d-newgame .ng-card-name { color: var(--hud-text); font-size: 13px; }
+.crawl3d-newgame .ng-card-note { color: var(--hud-dim); font-size: 11px; }
+.crawl3d-newgame .ng-card .ng-key { position: absolute; top: -7px; left: -6px; min-width: 0; padding: 0 4px; font-size: 10px; }
+.crawl3d-newgame .ng-card.ng-rec { border-color: #6b7a43; }
+.crawl3d-newgame .ng-card.ng-rec .ng-card-note { color: #a9cf74; }
+.crawl3d-newgame .ng-card.ng-off .ng-card-name { color: var(--hud-dim); }
+.crawl3d-newgame .ng-card.ng-off > canvas { opacity: 0.6; }
+.crawl3d-newgame .ng-card:hover,
+.crawl3d-newgame .ng-card.selected {
+    background: #262017;
+    border-color: var(--hud-gold);
+}
+.crawl3d-newgame .ng-card.selected { box-shadow: inset 3px 0 0 var(--hud-gold), 0 0 10px rgba(255, 215, 122, 0.2); }
+
+/* the selected choice's description */
+.crawl3d-newgame .ng-info {
+    flex: 0 0 auto;
+    margin-top: 10px;
+    padding: 8px 12px 10px;
+    background: #15120e;
+    border: 1px solid #3b3227;
+    border-radius: 8px;
+}
+.crawl3d-newgame .ng-info-head { display: flex; align-items: center; gap: 10px; min-height: 22px; }
+.crawl3d-newgame .ng-info-name { font: 15px var(--hud-serif); color: var(--hud-gold); }
+.crawl3d-newgame .ng-choose,
+.crawl3d-newgame .ng-extra,
+.crawl3d-newgame .ng-combo-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 4px 10px 4px 5px;
+    background: #1c1813;
+    border: 1px solid #5a4e3c;
+    border-radius: 8px;
+    color: var(--hud-text);
+    font: 12px var(--hud-sans);
+    white-space: nowrap;
+    cursor: pointer;
+}
+.crawl3d-newgame .ng-choose {
+    display: none;
+    margin-left: auto;
+    padding: 6px 14px;
+    background: var(--hud-gold);
+    border-color: #f0d9a4;
+    color: #1a140c;
+    font-weight: 600;
+}
+.crawl3d-newgame.ng-touch .ng-choose.on { display: inline-flex; }
+.crawl3d-newgame .descriptions {
+    display: grid;
+    margin: 4px 0 0;
+    max-width: none;
+    color: var(--hud-text);
+    font: 13px/1.45 var(--hud-sans);
+}
+.crawl3d-newgame .descriptions > .pane { height: auto !important; white-space: normal; }
+
+/* the extra choices (random, recommended, aptitudes, help...) as buttons */
+.crawl3d-newgame .sub-items {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #3b3227;
+}
+.crawl3d-newgame .ng-extra span { margin: 0; color: var(--hud-text); white-space: nowrap; }
+.crawl3d-newgame .ng-extra .ng-key { margin-right: 6px; }
+.crawl3d-newgame .ng-extra:hover,
+.crawl3d-newgame .ng-extra.selected,
+.crawl3d-newgame .ng-combo-btn:hover { background: #2c241a; border-color: var(--hud-gold); }
+
+/* "play this combination?" */
+.ui-popup.crawl3d-ng-combo .ui-popup-outer { width: min(520px, calc(100vw - 32px)); }
+.crawl3d-ng-combo .describe-generic { width: 100%; }
+.crawl3d-ng-combo .header { padding-right: 40px; }
+.crawl3d-ng-combo .header > span { font: 16px var(--hud-serif); white-space: normal; }
+.crawl3d-ng-combo .header span { color: var(--hud-gold); }
+.crawl3d-ng-combo .header > canvas { border-radius: 6px; background: #2a2118; }
+.crawl3d-ng-combo .ng-combo-ask { color: var(--hud-text); font: 13px var(--hud-sans); }
+.crawl3d-ng-combo .ng-combo-foot { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #3b3227; }
+
+@media (max-width: 720px) {
+    .ui-popup.crawl3d-newgame .ui-popup-outer {
+        width: calc(100vw - 16px);
+        max-height: calc(100dvh - 16px);
+        margin: 8px;
+        padding: 12px 10px 10px;
+    }
+    .crawl3d-newgame .newgame-choice > .ng-title { font-size: 16px; }
+    /* one flowing list: heads across, cards two to a row */
+    .crawl3d-newgame .main-items {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 8px;
+        padding-left: 6px;
+    }
+    .crawl3d-newgame .main-items.ng-single { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    .crawl3d-newgame .main-items > * { grid-row: auto !important; grid-column: auto !important; }
+    .crawl3d-newgame .main-items > .ng-head { grid-column: 1 / -1 !important; margin-top: 8px; }
+    .crawl3d-newgame .ng-card { min-height: 42px; }
+    .crawl3d-newgame .descriptions { max-height: 24vh; overflow-y: auto; font-size: 12px; }
+    .crawl3d-newgame .sub-items { display: grid; grid-template-columns: 1fr 1fr; }
+    .crawl3d-newgame .ng-extra { min-width: 0; min-height: 34px; padding-right: 6px; text-align: left; }
+    .crawl3d-newgame .ng-extra > span { white-space: normal; line-height: 1.25; }
+    .crawl3d-newgame .ng-extra .ng-key { flex: 0 0 auto; }
+    .crawl3d-newgame .ng-combo-btn { min-height: 36px; }
+}

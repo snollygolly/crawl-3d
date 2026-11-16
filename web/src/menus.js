@@ -503,6 +503,7 @@ define(["jquery", "comm", "./util", "./enums", "./actions"], function($, comm, u
 		init: init,
 		cleanup: cleanup,
 		set_active: set_active,
+		wrap_prefix: wrap_prefix,
 		pickup_open: function() { return !!pickup; }
 	};
 });
