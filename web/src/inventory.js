@@ -152,7 +152,9 @@ function($, comm, player, util, enums, names, main, actions) {
 		switch (msg.msg)
 		{
 		case "menu":
-			if (msg.tag === "inventory") open_sheet(msg, items || []);
+			// drop shares the tag, but chooses items: that's menus.js's
+			if (msg.tag === "inventory" && !((msg.flags || 0) & enums.menu_flag.MULTISELECT))
+				open_sheet(msg, items || []);
 			else forget_closed();
 			break;
 		case "update_menu":

@@ -12,7 +12,8 @@
 // Minimap buttons and most hotbar slots just send the game's own keys; Cast,
 // Fire, Quaff and Read open pickers instead (actions.js), which also handles
 // aiming. Inventory sends "i" too, and inventory.js turns the engine's menu
-// into a character sheet with equipment slots.
+// into a character sheet with equipment slots. menus.js dresses the engine's
+// other menus (pickup gets a sheet of its own) and describe popups.
 //
 // World-anchored bits (the floor prompt and hover tooltips) are positioned by
 // three_view, which knows the camera: it calls place_floor() every frame and
@@ -22,8 +23,8 @@
 // The stock message pane is not replaced: in HUD mode crawl3d.css moves it
 // into a panel, so --more--, prompts and text input keep working unchanged.
 define(["jquery", "comm", "./player", "./map_knowledge",
-	"./options", "./util", "./enums", "./tile_names", "./actions", "./inventory"],
-function($, comm, player, map_knowledge, options, util, enums, names, actions, inventory) {
+	"./options", "./util", "./enums", "./tile_names", "./actions", "./inventory", "./menus"],
+function($, comm, player, map_knowledge, options, util, enums, names, actions, inventory, menus) {
 	"use strict";
 
 	// player.place is the branch's short name; show the long one, in the
@@ -186,6 +187,7 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 		build_hotbar();
 		actions.init(root, { can_act: () => hooks.can_act() });
 		inventory.init({ can_act: () => hooks.can_act() });
+		menus.init();
 		map_xf = null;
 		map_buf = null;
 		map_yaw = 0;
@@ -215,6 +217,7 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 		clearInterval(coach_timer);
 		actions.cleanup();
 		inventory.cleanup();
+		menus.cleanup();
 		root.remove();
 		$("#hud_log_head").remove();
 		root = null;
@@ -231,6 +234,7 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 		$(document.body).toggleClass("crawl3d-hud", on);
 		actions.set_active(on);
 		inventory.set_active(on);
+		menus.set_active(on);
 		if (on)
 		{
 			render();

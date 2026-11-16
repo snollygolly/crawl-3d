@@ -602,15 +602,15 @@ body.crawl3d-hud .ui-popup.crawl3d-inv .menu_inventory > :not(#hud_inv) { displa
 }
 
 /* Item description: its actions as buttons */
-body.crawl3d-hud .ui-popup.crawl3d-desc .describe-item > .header > canvas {
+body.crawl3d-hud .ui-popup.crawl3d-desc .header > canvas {
     padding: 4px;
     background: radial-gradient(circle at 50% 35%, #2b241b, #16120e);
     border: 1px solid #b8924a;
     border-radius: 10px;
     image-rendering: pixelated;
 }
-body.crawl3d-hud .ui-popup.crawl3d-desc .describe-item > .header > span { font: 16px var(--hud-serif); color: var(--hud-gold); }
-body.crawl3d-hud .describe-item > .header > .hud-desc-close {
+body.crawl3d-hud .ui-popup.crawl3d-desc .header > span { font: 16px var(--hud-serif); color: var(--hud-gold); }
+body.crawl3d-hud .ui-popup.crawl3d-desc .hud-desc-close {
     align-self: flex-start;
     flex: none;
     width: 28px;
@@ -621,7 +621,10 @@ body.crawl3d-hud .describe-item > .header > .hud-desc-close {
     font-size: 16px;
     line-height: 28px;
 }
-body.crawl3d-hud .describe-item > .header > .hud-desc-close:hover { background: #2c241a; }
+body.crawl3d-hud .ui-popup.crawl3d-desc .hud-desc-close:hover { background: #2c241a; }
+/* menus.js: the other describe popups and text pages, close in the corner */
+.hud-desc-other { display: none; }
+body.crawl3d-hud .ui-popup.crawl3d-desc .hud-desc-other { display: block; position: absolute; top: 8px; right: 10px; z-index: 1; margin: 0; }
 
 /* Item description: the engine's stash search terms and menu colouring
    prefixes as chips (inventory.js tagify_desc), and its quote */
@@ -689,6 +692,173 @@ body.crawl3d-hud .describe-item > .actions > .hud-act.primary {
 }
 body.crawl3d-hud .describe-item > .actions > .hud-act.primary:hover { background: linear-gradient(#f0d08a, #c9a35a); }
 body.crawl3d-hud .describe-item > .actions > .hud-act.primary .hud-key { background: #f6e7c4; border-color: #8a6a32; color: #1a140c; }
+
+/* The engine's other menus (menus.js): drop, wear / wield, quiver,
+   abilities... keep the stock list, dressed. Our markup is in the menu in
+   2D too, so it's all hidden there and shown under body.crawl3d-hud. */
+.hud-menu-close,
+.hud-menu-hk,
+.hud-menu-foot,
+#hud_pickup { display: none; }
+body.crawl3d-hud .ui-popup.crawl3d-menu .ui-popup-outer {
+    max-width: calc(100vw - 32px);
+    padding: 14px 16px 12px;
+    background: rgba(14, 12, 10, 0.97);
+    border: 1px solid var(--hud-border);
+    border-radius: 12px;
+    outline: none;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+}
+body.crawl3d-hud .crawl3d-menu .menu { position: relative; min-width: min(36em, calc(100vw - 64px)); color: var(--hud-text); }
+body.crawl3d-hud .crawl3d-menu .menu_title {
+    margin-bottom: 8px;
+    padding: 2px 40px 8px 0;
+    border-bottom: 1px solid #3b3227;
+    color: var(--hud-gold);
+    font: 16px var(--hud-serif);
+    white-space: pre-wrap;
+}
+body.crawl3d-hud .crawl3d-menu .menu_more { display: none; }
+body.crawl3d-hud .crawl3d-menu .hud-menu-close {
+    display: block;
+    position: absolute;
+    top: -4px;
+    right: -6px;
+    z-index: 1;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border-radius: 6px;
+    font-size: 16px;
+    line-height: 28px;
+}
+body.crawl3d-hud .crawl3d-menu .hud-menu-close:hover { background: #2c241a; }
+body.crawl3d-hud .crawl3d-menu .menu_contents li.hud-menu-head {
+    margin: 10px 2px 4px;
+    padding: 0 0 3px;
+    border: 0;
+    border-bottom: 1px solid #3b3227;
+    color: var(--hud-gold);
+    font: 12px var(--hud-serif);
+    letter-spacing: 0.08em;
+}
+body.crawl3d-hud .crawl3d-menu .menu_contents li.hud-menu-head:first-child { margin-top: 2px; }
+body.crawl3d-hud .crawl3d-menu .menu_contents li.selectable {
+    margin: 4px 2px;
+    padding: 3px 10px 3px 6px;
+    background: #1c1813;
+    border: 1px solid #5a4e3c;
+    border-radius: 8px;
+    cursor: pointer;
+}
+body.crawl3d-hud .crawl3d-menu .menu_contents li.selectable:hover,
+body.crawl3d-hud .crawl3d-menu .menu_contents li.hovered { background: #262017; border-color: var(--hud-gold); color: inherit; }
+body.crawl3d-hud .crawl3d-menu .menu_contents li.selectable:active { background: #2c241a; border-color: var(--hud-gold); }
+body.crawl3d-hud .crawl3d-menu .menu_contents li.hud-picked {
+    background: #2a2116;
+    border-color: #b8924a;
+    box-shadow: inset 3px 0 0 var(--hud-gold), 0 0 8px rgba(255, 215, 122, 0.18);
+}
+body.crawl3d-hud .crawl3d-menu .menu_contents li > canvas { margin-right: 4px; }
+body.crawl3d-hud .crawl3d-menu .hud-menu-prefix { display: none; }
+body.crawl3d-hud .crawl3d-menu .hud-menu-hk { display: inline-block; vertical-align: middle; }
+body.crawl3d-hud .crawl3d-menu li.hud-picked .hud-menu-hk .hud-key { background: var(--hud-gold); border-color: #f0d9a4; color: #1a140c; }
+body.crawl3d-hud .crawl3d-menu .hud-menu-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #3b3227;
+    font: 12px var(--hud-sans);
+    white-space: normal;
+}
+.hud-menu-hint { color: var(--hud-dim); margin-right: 4px; }
+body.crawl3d-hud .crawl3d-menu .hud-menu-btn,
+#hud_pickup .hud-pickup-foot button,
+#hud_pickup .hud-pickup-group-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 4px 10px 4px 5px;
+    background: #1c1813;
+    border: 1px solid #5a4e3c;
+    border-radius: 8px;
+    color: var(--hud-text);
+    font: 12px var(--hud-sans);
+    cursor: pointer;
+}
+body.crawl3d-hud .crawl3d-menu .hud-menu-btn:hover,
+#hud_pickup .hud-pickup-foot button:hover:not(:disabled),
+#hud_pickup .hud-pickup-group-all:hover { background: #2c241a; border-color: var(--hud-gold); }
+
+/* Pickup: the engine's pickup menu redrawn as item cards (#hud_pickup) */
+body.crawl3d-hud .ui-popup.crawl3d-pickup .ui-popup-outer { width: min(760px, calc(100vw - 32px)); }
+body.crawl3d-hud .ui-popup.crawl3d-pickup .ui-popup-inner { display: block; width: 100%; }
+body.crawl3d-hud .ui-popup.crawl3d-pickup .menu { min-width: 0; }
+body.crawl3d-hud .ui-popup.crawl3d-pickup .menu > :not(#hud_pickup) { display: none; }
+body.crawl3d-hud #hud_pickup { display: block; color: var(--hud-text); font-family: var(--hud-sans); }
+#hud_pickup button { margin: 0; font-family: var(--hud-sans); }
+#hud_pickup .hud-head { align-items: center; margin-bottom: 10px; }
+#hud_pickup .hud-title { font: 18px var(--hud-serif); letter-spacing: 0.04em; color: var(--hud-gold); }
+.hud-pickup-meta { margin-left: auto; font-size: 12px; }
+#hud_pickup .hud-close { display: inline; margin-left: 14px; padding: 0 2px; }
+.hud-pickup-body { max-height: 52vh; overflow-y: auto; padding-right: 4px; }
+.hud-pickup-group + .hud-pickup-group { margin-top: 12px; }
+.hud-pickup-group .hud-inv-group-name { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+#hud_pickup .hud-pickup-group-all { margin-left: auto; padding: 1px 8px 1px 3px; font-size: 11px; text-transform: none; letter-spacing: 0; }
+#hud_pickup .hud-pickup-group-all .hud-key { font-size: 10px; padding: 0 4px; min-width: 0; }
+.hud-pickup-group .hud-cards { max-height: none; overflow: visible; }
+#hud_pickup .hud-pickup-card { flex: 1 1 300px; max-width: 360px; padding-right: 36px; }
+#hud_pickup .hud-pickup-card:focus { background: #262017; border-color: var(--hud-gold); }
+#hud_pickup .hud-pickup-card.picked {
+    background: #2a2116;
+    border-color: var(--hud-gold);
+    box-shadow: 0 0 10px rgba(255, 215, 122, 0.25);
+}
+#hud_pickup .hud-pickup-card.picked .dim { color: #e2bf78; }
+.hud-pickup-check {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    width: 18px;
+    height: 18px;
+    margin-top: -10px;
+    border: 1px solid #6d6150;
+    border-radius: 50%;
+    color: #1a140c;
+    font: 700 12px/18px var(--hud-sans);
+    text-align: center;
+}
+.hud-pickup-card.picked .hud-pickup-check { background: var(--hud-gold); border-color: #f0d9a4; }
+.hud-pickup-info {
+    min-height: 20px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #3b3227;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.hud-pickup-info .hud-key { margin-right: 4px; }
+.hud-pickup-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.hud-pickup-count { margin-right: 8px; color: var(--hud-dim); font-size: 12px; }
+.hud-pickup-gap { flex: 1; }
+#hud_pickup .hud-pickup-foot button:disabled { opacity: 0.4; cursor: default; }
+#hud_pickup #hud_pickup_go {
+    padding: 6px 14px 6px 6px;
+    background: linear-gradient(#e2bf78, #b8924a);
+    border-color: #f0d9a4;
+    color: #1a140c;
+    font-size: 13px;
+    font-weight: 600;
+}
+#hud_pickup #hud_pickup_go:hover { background: linear-gradient(#f0d08a, #c9a35a); }
+#hud_pickup #hud_pickup_go .hud-key { background: #f6e7c4; border-color: #8a6a32; color: #1a140c; }
 
 /* Aiming banner */
 #hud_aim {
