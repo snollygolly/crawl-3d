@@ -142,7 +142,7 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
   <div class="hud-panel" id="hud_coach"><span id="hud_coach_text"></span><button id="hud_coach_close" title="Hide tips">&#x2715;</button></div>
   <div id="hud_right">
     <div class="hud-panel" id="hud_map">
-      <div class="hud-head"><span class="hud-title" id="hud_map_title"></span><span class="dim">click to travel</span></div>
+      <div class="hud-head"><span class="hud-title" id="hud_map_title"></span><span class="dim hud-hint">click to travel</span><span class="hud-threat nasty" id="hud_mon_badge"></span><span class="hud-fold-ico"></span></div>
       <canvas id="hud_map_canvas"></canvas>
       <div class="hud-legend">
         <span><i style="background:#fff"></i>you</span><span><i style="background:#4fd1ff"></i>stairs</span><span><i style="background:#e5c14a"></i>items</span><span><i style="background:#ff5c5c"></i>monsters</span><span><i style="background:#a8553a"></i>unexplored</span>
@@ -159,6 +159,18 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
     </div>
   </div>
   <div class="hud-panel" id="hud_bar"></div>
+  <div class="hud-panel" id="hud_keys">
+    <button data-code="27">Esc</button>
+    <button data-code="13">Enter</button>
+    <button data-code="121">Yes</button>
+    <button data-code="110">No</button>
+    <button data-code="60" title="Go up stairs (&lt;)">&#x2191; Up</button>
+    <button data-code="62" title="Go down stairs (&gt;)">&#x2193; Down</button>
+    <button data-code="115" title="Wait a turn (s)">Wait</button>
+    <button data-code="63" title="Help (?)">Help</button>
+    <button id="hud_keys_type" title="Open the keyboard: what you type goes to the game">&#x2328; Type</button>
+    <input id="hud_keys_input" class="text" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Keyboard input">
+  </div>
   <div class="hud-panel" id="hud_floor"></div>
   <div class="hud-panel" id="hud_tip"><div class="hud-tip-title"></div><div class="hud-tip-sub dim"></div><div class="hud-tip-hint"></div><div class="hud-tip-mouse"></div></div>
 </div>`;
@@ -173,6 +185,7 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 	let map_buf = null;
 	let map_yaw = 0;
 	let coach_timer = null;
+	let edges = null;
 	let hostiles = 0;
 	// what's on the player's square: { feature, items, items_at, pos }
 	let floor = { feature: null, items: null, items_at: 0, pos: null };
@@ -193,6 +206,9 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 		map_yaw = 0;
 		$("#hud_map_canvas").attr("data-yaw", "0.00");
 		bind_map();
+		bind_folds();
+		bind_keys();
+		watch_edges();
 		start_coach();
 		$("#message_pane").prepend("<div id='hud_log_head'><span>Messages</span>"
 			+ "<span><span class='hud-key'>Ctrl-P</span> history</span></div>");
@@ -201,6 +217,10 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 		$(document).on("crawl3d_player.hud", render);
 		$(document).on("crawl3d_actions.hud", render_hotbar);
 		$(document).on("crawl3d_message.hud", function(ev, data) { floor_message(data); });
+		// tap --more-- (or the log under it) to continue, for touch players
+		$("#message_pane").on("click.hud", function() {
+			if ($("#more").is(":visible")) send_raw(13);
+		});
 		$("#hud_floor").on("click", "button", function() {
 			send_key($(this).data("key"));
 			this.blur();
@@ -214,6 +234,9 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 	{
 		if (!root) return;
 		$(document).off(".hud");
+		$("#message_pane").off(".hud");
+		if (edges) edges.disconnect();
+		edges = null;
 		clearInterval(coach_timer);
 		actions.cleanup();
 		inventory.cleanup();
@@ -240,6 +263,13 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 			render();
 			refresh();
 		}
+	}
+
+	// For the Keys drawer and --more--: these must work while a menu or a
+	// prompt has the keyboard, so unlike send_key they aren't gated.
+	function send_raw(code)
+	{
+		comm.send_message("key", { keycode: code });
 	}
 
 	function send_key(key)
@@ -479,6 +509,10 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 	// cheap enough to do every frame the camera turns.
 	function build_map()
 	{
+		// the title shows even while the map is folded away (phones)
+		let title = $("#hud_place").text().replace("The Dungeon", "Dungeon");
+		if (!title) title = "Map";
+		$("#hud_map_title").text(title);
 		const c = document.getElementById("hud_map_canvas");
 		const b = map_knowledge.bounds();
 		if (!c || !b) return;
@@ -510,9 +544,6 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 			// the map point (in cells) shown at the canvas centre
 			cx: on ? player.pos.x + 0.5 : b.left + cols / 2,
 			cy: on ? player.pos.y + 0.5 : b.top + rows / 2 };
-		let title = $("#hud_place").text().replace("The Dungeon", "Dungeon");
-		if (!title) title = "Map";
-		$("#hud_map_title").text(title);
 		paint_map();
 	}
 
@@ -662,6 +693,7 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 	{
 		const seen = visible_monsters();
 		hostiles = seen.filter(m => !m.mon.att).length;
+		$("#hud_mon_badge").text(`${hostiles} hostile`).toggle(hostiles > 0);
 		const groups = new Map();
 		for (const m of seen)
 		{
@@ -724,8 +756,21 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 			}
 			bar.append(g.append(row));
 		});
+		// Touch only (CSS hides it on desktop): opens the Keys drawer
+		bar.append("<div class='hud-sep hud-touch'></div>",
+			$("<div class='hud-grp hud-touch'>").append($("<div class='hud-grp-name'>").text("Keys"),
+				$("<div class='hud-slots'>").append($("<button class='hud-slot' id='hud_slot_keys'>")
+					.attr("title", "Esc, stairs, yes / no, and a keyboard")
+					.append($("<span class='hud-icon'>").text("\u2328"), $("<small>").text("Keys")))));
 		bar.on("click", ".hud-slot", function() {
 			const id = this.id.replace(/^hud_slot_/, "");
+			if (id === "keys")
+			{
+				$("#hud_keys").toggleClass("on");
+				$(this).toggleClass("hl", $("#hud_keys").hasClass("on"));
+				this.blur();
+				return;
+			}
 			if (!actions.slot(id)) send_key($(this).data("key"));
 			this.blur();
 		});
@@ -746,6 +791,93 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 		const hurt = player.hp < player.hp_max * 0.6 || player.mp < player.mp_max * 0.5;
 		$("#hud_slot_fight").toggleClass("hl", hostiles > 0);
 		$("#hud_slot_rest").toggleClass("hl", hostiles === 0 && hurt);
+	}
+
+	// ------------------------------------------------------------------
+	// 11: phones. The character card and the minimap fold down to a line;
+	// the .folded class only changes the layout under the phone media
+	// query, so desktop never sees it. Folded by default, then remembered.
+
+	const PHONE = "(max-width: 720px)";
+	const FOLD_KEY = "crawl3d_folds";
+
+	function is_phone()
+	{
+		return !!(window.matchMedia && window.matchMedia(PHONE).matches);
+	}
+
+	function bind_folds()
+	{
+		let saved = {};
+		try { saved = JSON.parse(localStorage.getItem(FOLD_KEY) || "{}") || {}; } catch (e) {}
+		const panels = { char: $("#hud_char"), map: $("#hud_right") };
+		for (const [name, el] of Object.entries(panels))
+			el.toggleClass("folded", saved[name] !== false);
+		function fold(name)
+		{
+			if (!is_phone()) return;
+			const el = panels[name].toggleClass("folded");
+			saved[name] = el.hasClass("folded");
+			try { localStorage.setItem(FOLD_KEY, JSON.stringify(saved)); } catch (e) {}
+			// the canvas had no size while folded
+			if (name === "map" && !saved[name]) build_map();
+		}
+		$("#hud_char .hud-top").on("click", function() { fold("char"); });
+		$("#hud_map .hud-head").on("click", function() { fold("map"); });
+	}
+
+	// Publish where the card ends and how tall the hotbar is, as CSS
+	// variables, so the phone layout can stack the other panels against
+	// them whatever their current height (folded, wrapped).
+	function watch_edges()
+	{
+		if (!window.ResizeObserver) return;
+		const style = document.body.style;
+		function measure()
+		{
+			const card = document.getElementById("hud_char");
+			const bar = document.getElementById("hud_bar");
+			const log = document.getElementById("message_pane");
+			if (card && card.offsetHeight)
+				style.setProperty("--hud-card-bottom", `${Math.round(card.getBoundingClientRect().bottom)}px`);
+			if (bar && bar.offsetHeight)
+				style.setProperty("--hud-bar-h", `${Math.round(window.innerHeight - bar.getBoundingClientRect().top)}px`);
+			if (log && log.offsetHeight)
+				style.setProperty("--hud-log-h", `${Math.round(window.innerHeight - log.getBoundingClientRect().top)}px`);
+		}
+		edges = new ResizeObserver(measure);
+		edges.observe(document.getElementById("hud_char"));
+		edges.observe(document.getElementById("hud_bar"));
+		edges.observe(document.getElementById("message_pane"));
+	}
+
+	// The Keys drawer: keys a phone has no way to press, and a hidden text
+	// box that brings up the phone's keyboard and forwards what's typed.
+	// Buttons don't take focus, so an open menu or the keyboard stays put.
+	function bind_keys()
+	{
+		const box = $("#hud_keys");
+		const input = $("#hud_keys_input");
+		// (mousedown only: cancelling pointerdown would cancel a tap's click)
+		box.on("mousedown", "button", function(ev) { ev.preventDefault(); });
+		box.on("click", "button", function() {
+			if (this.id === "hud_keys_type") input[0].focus();
+			else send_raw(Number($(this).data("code")));
+		});
+		// class "text" keeps the stock client's key handler off this box
+		input.on("keydown", function(ev) {
+			ev.stopPropagation();
+			// as the stock mobile helper does: backspace is Esc
+			if (ev.which === 8 || ev.which === 46) send_raw(27);
+			else if (ev.which === 13) send_raw(13);
+			else return;
+			ev.preventDefault();
+		});
+		input.on("input", function() {
+			const typed = this.value;
+			this.value = "";
+			for (const ch of typed) send_raw(ch.codePointAt(0));
+		});
 	}
 
 	// ------------------------------------------------------------------
@@ -851,7 +983,10 @@ function($, comm, player, map_knowledge, options, util, enums, names, actions, i
 			return;
 		}
 		box.show().toggleClass("docked", !!docked);
-		if (!docked) box.css({ left: Math.round(x + 40), top: Math.round(y + 10) });
+		// beside the feet, but kept on screen
+		if (!docked)
+			box.css({ left: Math.round(Math.max(8, Math.min(x + 40, window.innerWidth - box.outerWidth() - 8))),
+				top: Math.round(y + 10) });
 		else box.css({ left: "", top: "" });
 	}
 

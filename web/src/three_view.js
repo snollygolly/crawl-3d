@@ -1048,13 +1048,81 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 
 		const el = s.renderer.domElement;
 		let drag = null;
+		// Touch: a long press describes (like right-click), and two fingers
+		// pinch to zoom. touches: pointerId -> { x, y } for fingers down.
+		const touches = new Map();
+		let pinch = null;
+		let press_timer = null;
+		function cancel_press()
+		{
+			clearTimeout(press_timer);
+			press_timer = null;
+		}
+		function finger_gap()
+		{
+			const [a, b] = [...touches.values()];
+			return Math.hypot(a.x - b.x, a.y - b.y) || 1;
+		}
 		$(el).on("contextmenu", function(ev) { ev.preventDefault(); });
 		el.addEventListener("pointerdown", function(ev) {
+			if (ev.pointerType === "touch")
+			{
+				touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+				if (touches.size === 2)
+				{
+					// a second finger: pinch, and drop the first finger's tap
+					cancel_press();
+					drag = null;
+					pinch = { gap: finger_gap(), dist: settings.dist };
+					return;
+				}
+				if (touches.size > 2) return;
+			}
 			drag = { x: ev.clientX, y: ev.clientY, moved: 0, button: ev.button,
 				yaw: settings.yaw, pitch: settings.pitch };
 			el.setPointerCapture(ev.pointerId);
+			if (ev.pointerType === "touch")
+			{
+				const d = drag;
+				cancel_press();
+				press_timer = setTimeout(function() {
+					press_timer = null;
+					if (drag !== d || d.moved > 6) return;
+					const r = el.getBoundingClientRect();
+					const c = pick_target(d.x - r.left, d.y - r.top);
+					if (c) comm.send_message("click_cell", { x: c.x, y: c.y, button: 3 });
+					// the finger lifting now isn't a tap
+					drag = null;
+				}, 500);
+			}
+		});
+		function end_touch(ev)
+		{
+			if (ev.pointerType !== "touch") return;
+			touches.delete(ev.pointerId);
+			if (touches.size < 2 && pinch)
+			{
+				pinch = null;
+				save_settings();
+			}
+			if (!touches.size) cancel_press();
+		}
+		el.addEventListener("pointercancel", function(ev) {
+			end_touch(ev);
+			drag = null;
 		});
 		el.addEventListener("pointermove", function(ev) {
+			if (ev.pointerType === "touch" && touches.has(ev.pointerId))
+			{
+				touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+				if (pinch)
+				{
+					if (touches.size === 2)
+						settings.dist = Math.max(2.5, Math.min(16,
+							pinch.dist * pinch.gap / finger_gap()));
+					return;
+				}
+			}
 			if (drag)
 			{
 				const dx = ev.clientX - drag.x; const dy = ev.clientY - drag.y;
@@ -1070,9 +1138,11 @@ function($, comm, map_knowledge, cr, player, dngn, enums, hud, dungeon_renderer,
 					return;
 				}
 			}
-			hover_at(ev);
+			// no hover tooltips under a finger
+			if (ev.pointerType !== "touch") hover_at(ev);
 		});
 		el.addEventListener("pointerup", function(ev) {
+			end_touch(ev);
 			if (!drag) return;
 			const d = drag;
 			drag = null;

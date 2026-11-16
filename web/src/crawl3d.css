@@ -1097,3 +1097,206 @@ body.crawl3d-hud #action-panel-placeholder {
 @media (max-width: 1100px) {
     #hud_coach { display: none; }
 }
+
+/* ------------------------------------------------------------------
+   Touch: the Keys drawer (hud.js), for keys a phone can't press */
+
+.hud-touch { display: none; }
+#hud_keys {
+    display: none;
+    left: 50%;
+    bottom: 112px;
+    transform: translateX(-50%);
+    /* above #ui-stack (3000), so Esc can close an open menu */
+    z-index: 3100;
+    width: max-content;
+    max-width: calc(100vw - 16px);
+    padding: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 5px;
+}
+#hud_keys.on { display: flex; }
+#hud_keys button {
+    min-width: 44px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 6px;
+    background: var(--hud-chip);
+    border: 1px solid #5a4e3c;
+    color: var(--hud-text);
+    font: 13px var(--hud-sans);
+    cursor: pointer;
+}
+#hud_keys button:active { border-color: var(--hud-gold); background: #2c241a; }
+#hud_keys_type { color: var(--hud-gold) !important; }
+/* off screen but focusable, so it can summon the phone's keyboard */
+#hud_keys_input {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    font-size: 16px; /* under 16px, iOS zooms the page on focus */
+}
+#hud_mon_badge, .hud-fold-ico { display: none; }
+@media (pointer: coarse) {
+    body.crawl3d-hud .hud-touch { display: block; }
+    body.crawl3d-hud #hud_tip { display: none !important; }
+}
+
+/* ------------------------------------------------------------------
+   Phones: one column. The card and the map fold to a line along the top
+   (hud.js toggles .folded), the log and a two-row hotbar along the
+   bottom, and the 3D view keeps the middle. */
+@media (max-width: 720px) {
+    body.crawl3d-hud .hud-touch { display: block; }
+    body.crawl3d-hud #hud_loc,
+    body.crawl3d-hud #hud_coach,
+    body.crawl3d-hud #action-panel,
+    body.crawl3d-hud #action-panel-placeholder,
+    body.crawl3d-hud #hud_log_head > span:last-child,
+    body.crawl3d-hud .hud-sep,
+    body.crawl3d-hud .hud-grp-name,
+    body.crawl3d-hud .hud-slot .hud-key,
+    body.crawl3d-hud #hud_right .hud-hint,
+    body.crawl3d-hud .hud-legend { display: none !important; }
+
+    /* character card: portrait and name, then HP | MP side by side */
+    #hud_char {
+        left: 8px;
+        right: 8px;
+        top: 8px;
+        width: auto;
+        padding: 8px 10px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 8px;
+    }
+    #hud_char > :not(.hud-bar) { grid-column: 1 / -1; }
+    #hud_char .hud-top { gap: 10px; cursor: pointer; }
+    .hud-port { flex-basis: 36px; width: 36px; height: 36px; }
+    .hud-port canvas { width: 32px; height: 32px; }
+    .hud-xl { font-size: 10px; padding: 1px 5px; bottom: -5px; right: -6px; }
+    .hud-name { font-size: 15px; }
+    .hud-sub { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hud-xpbar { margin-top: 4px; }
+    .hud-bar { height: 16px; margin-top: 6px; }
+    .hud-bar > span { font-size: 11px; padding: 0 6px; }
+    .hud-chips, .hud-status { margin-top: 6px; }
+    #hud_char.folded .hud-xptext,
+    #hud_char.folded .hud-chips,
+    #hud_char.folded .hud-status { display: none; }
+
+    /* minimap and monsters: under the card on the right */
+    #hud_right {
+        right: 8px;
+        top: calc(var(--hud-card-bottom, 100px) + 6px);
+        /* beside the view switcher */
+        width: min(240px, calc(100vw - 222px));
+        gap: 6px;
+    }
+    #hud_right .hud-panel { padding: 6px 8px; }
+    #hud_map .hud-head { margin-bottom: 4px; gap: 6px; align-items: center; cursor: pointer; }
+    #hud_map .hud-title { margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #hud_mon_badge { white-space: nowrap; }
+    .hud-fold-ico { display: inline; color: var(--hud-dim); }
+    .hud-fold-ico::before { content: "\25B4"; }
+    #hud_right.folded .hud-fold-ico::before { content: "\25BE"; }
+    #hud_right.folded #hud_map .hud-head { margin-bottom: 0; }
+    #hud_right.folded #hud_map_canvas,
+    #hud_right.folded #hud_map .hud-btnrow,
+    #hud_right.folded #hud_mons { display: none !important; }
+    #hud_map_canvas { height: 140px; }
+    .hud-btnrow { margin-top: 6px; gap: 4px; }
+    .hud-btnrow button { font-size: 11px; padding: 6px 2px; }
+    .hud-btnrow .hud-key { display: none; }
+    .hud-mon { font-size: 12px; padding: 3px 0; }
+
+    /* hotbar: full width, two rows */
+    #hud_bar {
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+        transform: none;
+        padding: 6px;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 5px;
+    }
+    #hud_bar .hud-grp, #hud_bar .hud-slots { display: contents; }
+    .hud-slot { width: 44px; height: 44px; border-radius: 7px; }
+    .hud-slot .hud-icon { font-size: 18px; }
+    .hud-slot small { font-size: 9px; margin-top: 2px; }
+    .hud-slot .hud-count { top: 2px; right: 3px; font-size: 9px; }
+
+    /* message log: full width above the hotbar, three lines */
+    body.crawl3d-hud #message_pane {
+        left: 8px;
+        right: 8px;
+        bottom: calc(var(--hud-bar-h, 120px) + 6px);
+        width: auto;
+        padding: 4px 8px;
+        font-size: 12px;
+    }
+    body.crawl3d-hud #hud_log_head { margin-bottom: 0; }
+    body.crawl3d-hud #messages_container { max-height: 4.5em !important; }
+    body.crawl3d-hud #messages .game_message[data-turn]::before { min-width: 2.8em; font-size: 10px; }
+
+    /* view switcher: small, top-left under the card */
+    body.crawl3d-hud #three_toolbar.hud {
+        left: 8px;
+        right: auto;
+        top: calc(var(--hud-card-bottom, 100px) + 6px);
+        bottom: auto;
+        padding: 3px;
+        font-size: 11px;
+    }
+    #three_toolbar.hud button { padding: 5px 7px; }
+    #three_toolbar.hud [data-act^=rot] { display: none !important; }
+
+    /* pickers, the Keys drawer and the floor prompt sit above the log */
+    #hud_picker { bottom: calc(var(--hud-bar-h, 120px) + 6px); max-width: calc(100vw - 16px); }
+    /* above the log, which is where prompts ask their question */
+    #hud_keys { bottom: calc(var(--hud-log-h, 200px) + 6px); }
+    .ui-popup.crawl3d-spells { padding: 0 8px calc(var(--hud-bar-h, 120px) + 6px); }
+    .ui-popup.crawl3d-spells .ui-popup-outer { max-width: calc(100vw - 16px); }
+    #hud_floor.docked { bottom: calc(var(--hud-bar-h, 120px) + 96px); }
+    #hud_aim {
+        top: calc(var(--hud-card-bottom, 100px) + 44px);
+        max-width: calc(100vw - 16px);
+        white-space: normal;
+        flex-wrap: wrap;
+    }
+    .hud-card { flex: 1 1 100%; }
+    .hud-cards { max-height: 40vh; }
+    body.crawl3d-hud .ui-popup.crawl3d-menu .ui-popup-outer { max-width: calc(100vw - 16px); padding: 10px 10px 8px; }
+    body.crawl3d-hud .crawl3d-menu .menu { min-width: 0; }
+    #hud_pickup .hud-pickup-card { flex-basis: 100%; max-width: none; }
+
+    /* inventory sheet: a smaller paper doll over the bag */
+    /* stock menus are at least 640px wide */
+    body.crawl3d-hud .ui-popup .menu { min-width: 0; }
+    body.crawl3d-hud .ui-popup.crawl3d-inv .ui-popup-outer {
+        box-sizing: border-box;
+        width: calc(100vw - 16px);
+        padding: 10px 8px 8px;
+    }
+    #hud_inv .hud-head { flex-wrap: wrap; row-gap: 4px; }
+    .hud-inv-body { gap: 10px; }
+    .hud-inv-left { min-width: 0; padding: 10px 6px 8px; gap: 10px; }
+    .hud-inv-doll {
+        grid-template-columns: repeat(3, 52px);
+        grid-template-rows: repeat(4, 52px);
+        gap: 20px 18px;
+        background-size: 76px 240px;
+    }
+    .hud-inv-slot { width: 52px; height: 52px; }
+    .hud-inv-slot canvas { width: 40px; height: 40px; }
+    .hud-inv-defs { flex-wrap: wrap; justify-content: center; }
+    .hud-inv-bag { max-height: 30vh; }
+    .hud-inv-info { white-space: normal; }
+}

@@ -151,7 +151,8 @@ test.describe("the 3D HUD", () => {
 		await expect(page.locator("#hud_char")).toBeVisible();
 
 		// Hotbar slots send the game's keys: inventory opens the menu.
-		await expect(page.locator("#hud_bar .hud-slot")).toHaveCount(11);
+		// (plus the touch-only Keys slot, hidden on desktop)
+		await expect(page.locator("#hud_bar .hud-slot:visible")).toHaveCount(11);
 		await expect(page.locator("#hud_slot_fight .hud-key")).toHaveText("Tab");
 		await page.locator("#hud_slot_inventory").click();
 		await waitInPage(page, () => !!document.querySelector("#ui-stack > *"), "the inventory", 15000);

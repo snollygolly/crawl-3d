@@ -18,7 +18,8 @@ module.exports = defineConfig({
 		screenshot: "only-on-failure",
 		video: "on-first-retry"
 	},
-	// Desktop WebKit only: Crawl's UI is keyboard-driven, so there's no phone layout to test.
+	// Desktop WebKit only: Crawl's UI is keyboard-driven. The phone layout is tested from this
+	// project too, with a phone-sized touch viewport (e2e/mobile.spec.js).
 	// Never Chromium (see CLAUDE.md).
 	projects: [
 		{ name: "desktop-webkit", use: { ...devices["Desktop Safari"] } }
