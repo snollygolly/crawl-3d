@@ -14,10 +14,12 @@ import path from "node:path";
 import {parseArgs} from "node:util";
 import {fileURLToPath} from "node:url";
 import {engineKeyPrefix, listBundle, MANIFEST} from "./lib/engine-bundle.mjs";
+import {withRetry} from "./lib/retry.mjs";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CACHE_CONTROL = "public, max-age=31536000, immutable";
-const CONCURRENCY = 4;
+// The bucket throttles bursts, so keep few uploads in flight.
+const CONCURRENCY = 2;
 
 const { values } = parseArgs({
 	options: {
@@ -60,6 +62,8 @@ async function s3Storage() {
 	const client = new sdk.S3Client({
 		endpoint: env.AWS_ENDPOINT_URL || "https://storage.railway.app",
 		region: env.AWS_DEFAULT_REGION || "auto",
+		maxAttempts: 8,
+		retryMode: "adaptive",
 		credentials: { accessKeyId: env.AWS_ACCESS_KEY_ID, secretAccessKey: env.AWS_SECRET_ACCESS_KEY }
 	});
 	const Bucket = env.AWS_S3_BUCKET_NAME;
@@ -74,9 +78,10 @@ async function s3Storage() {
 				throw err;
 			}
 		},
-		put: (Key, f) => client.send(new sdk.PutObjectCommand({
+		// A Buffer body, not a stream: the SDK can only retry (e.g. on SlowDown) a body it can resend.
+		put: async(Key, f) => client.send(new sdk.PutObjectCommand({
 			Bucket, Key,
-			Body: fs.createReadStream(f.abs),
+			Body: await fs.promises.readFile(f.abs),
 			ContentLength: f.size,
 			ContentType: f.type,
 			CacheControl: CACHE_CONTROL
@@ -96,19 +101,22 @@ async function main() {
 		console.log("dry run: nothing uploaded");
 		return;
 	}
+	const put = f => withRetry(() => storage.put(prefix + f.rel, f), {
+		onRetry: (err, attempt, ms) => console.log(`  retrying ${f.rel} (${err.name}, attempt ${attempt}) in ${(ms / 1000).toFixed(1)}s`)
+	});
 	const body = files.filter(f => f.rel !== MANIFEST);
 	const queue = [...body];
 	let done = 0;
 	const worker = async() => {
 		while (queue.length > 0) {
 			const f = queue.shift();
-			await storage.put(prefix + f.rel, f);
+			await put(f);
 			done += 1;
 			if (f.size > 1e6 || done % 25 === 0) console.log(`  ${done}/${body.length} ${f.rel}`);
 		}
 	};
 	await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-	await storage.put(prefix + MANIFEST, files.find(f => f.rel === MANIFEST));
+	await put(files.find(f => f.rel === MANIFEST));
 	console.log(`uploaded engine ${build}; the game loads it from /.hub/files/engine/${build}/`);
 }
 

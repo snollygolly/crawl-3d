@@ -33,6 +33,15 @@ test("lists the bundle with types, manifest.json last", async() => {
 	fs.rmSync(dir, { recursive: true });
 });
 
+test("leaves dotfiles like .DS_Store out of the bundle", async() => {
+	const { listBundle } = await lib();
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bundle-"));
+	fs.mkdirSync(path.join(dir, "gamedata"));
+	for (const f of ["manifest.json", ".DS_Store", "gamedata/.DS_Store", "gamedata/main.png"]) fs.writeFileSync(path.join(dir, f), "x");
+	assert.deepStrictEqual(listBundle(dir).map(f => f.rel), ["gamedata/main.png", "manifest.json"]);
+	fs.rmSync(dir, { recursive: true });
+});
+
 test("refuses a folder without a manifest", async() => {
 	const { listBundle } = await lib();
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bundle-"));

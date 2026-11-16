@@ -23,6 +23,8 @@ export function listBundle(dir) {
 	const out = [];
 	const walk = sub => {
 		for (const e of fs.readdirSync(path.join(dir, sub), { withFileTypes: true })) {
+			// .DS_Store and friends aren't part of the engine.
+			if (e.name.startsWith(".")) continue;
 			const rel = sub ? `${sub}/${e.name}` : e.name;
 			if (e.isDirectory()) walk(rel);
 			else if (e.isFile()) out.push(rel);
